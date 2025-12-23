@@ -1,0 +1,285 @@
+<!-- Name: Joshua Solano
+ Project: Test 2 - IS403
+ Date: Nov 21, 2025
+ Description: Analysis page for withdrawals of a specific deposit -->
+ <!DOCTYPE html>
+ <html lang="en">
+ <head>
+   <meta charset="UTF-8">
+   <title>Withdrawal Analysis</title>
+   <link rel="icon" type="image/png" href="/images/favicon.png">
+   <meta name="viewport" content="width=device-width, initial-scale=1">
+ 
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+ 
+   <style>
+     body {
+       background-color: #f5f5f5;
+       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+     }
+ 
+     .navbar-brand {
+       font-weight: 600;
+     }
+ 
+     .card {
+       border-radius: 14px;
+       box-shadow: 0 8px 25px rgba(0,0,0,0.06);
+       border: none;
+     }
+ 
+     .metric-card {
+       border-radius: 12px;
+       padding: 1rem;
+       transition: 0.2s ease;
+     }
+ 
+     .metric-card:hover {
+       transform: translateY(-2px);
+       box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+     }
+ 
+     .metric-label {
+       font-size: 0.8rem;
+       text-transform: uppercase;
+       letter-spacing: 0.03em;
+       color: #6c757d;
+       margin-bottom: 0.15rem;
+     }
+ 
+     .metric-value {
+       font-size: 1rem;
+       font-weight: 600;
+     }
+ 
+     .btn-primary {
+       background-color: #FF4E00;
+       border-color: #FF4E00;
+       transition: all .2s ease;
+       font-weight: 600;
+     }
+ 
+     .btn-primary:hover {
+       background-color: #ff7a33;
+       border-color: #ff7a33;
+       transform: translateY(-2px);
+       box-shadow: 0 4px 10px rgba(255, 78, 0, 0.25);
+     }
+ 
+     .subsection {
+       background: #f0efef;
+       color: #000000;
+       padding: 20px;
+       border-radius: 8px;
+       margin-top: 10px;
+     }
+ 
+     /* Responsive image rules */
+     .analysis-image {
+       display: block;
+       margin: 0 auto;
+       width: 100%;
+     }
+ 
+     @media (min-width: 768px) {
+       .analysis-image {
+         width: 60%;
+       }
+     }
+ 
+     @media (min-width: 1200px) {
+       .analysis-image {
+         width: 50%;
+       }
+     }
+   </style>
+ </head>
+ <body>
+ 
+   <!-- NAVBAR -->
+   <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+     <div class="container">
+       <a class="navbar-brand" href="/login">College Finances</a>
+ 
+       <div class="ms-auto d-flex gap-2">
+         <form action="/logout" method="get" class="m-0">
+           <button type="submit" class="btn btn-outline-secondary btn-sm">Logout</button>
+         </form>
+ 
+         <form action="/" method="get" class="m-0">
+           <button type="submit" class="btn btn-outline-primary btn-sm">Home</button>
+         </form>
+       </div>
+     </div>
+   </nav>
+ 
+   <!-- MAIN CONTENT -->
+   <div class="container my-5">
+     <div class="card">
+       <div class="card-body p-4 p-md-5">
+ 
+         <!-- Page Header -->
+         <div class="d-flex justify-content-between align-items-center mb-3">
+           <div>
+             <h1 class="h4 mb-1">Withdrawal Analysis</h1>
+           </div>
+ 
+           <form action="/displayWithdrawl/<%= deposit.depositID %>" method="get">
+             <button type="submit" class="btn btn-outline-secondary btn-sm">← Back</button>
+           </form>
+         </div>
+         <br>
+ 
+         <!-- Metrics -->
+         <div class="row g-3 mb-4">
+          <div class="row justify-content-center">
+ 
+           <!-- Balance group -->
+           <div class="col-12 col-md-6 col-lg-3">
+             <div class="metric-card bg-light border">
+               <div class="metric-label">Starting Balance (Before Deposit)</div>
+               <div class="metric-value">$<%= Number(deposit.startBalance).toFixed(2) %></div>
+             </div>
+           </div>
+
+           <div class="col-12 col-md-6 col-lg-3">
+            <div class="metric-card bg-light border">
+              <div class="metric-label">Deposit Amount</div>
+              <div class="metric-value">$<%= Number(deposit.depositAmount).toFixed(2) %></div>
+            </div>
+          </div>
+ 
+           <div class="col-12 col-md-6 col-lg-3">
+             <div class="metric-card bg-light border">
+               <div class="metric-label">Start Balance After Deposit</div>
+               <div class="metric-value">
+                $<%= Number(deposit.startBalance + deposit.depositAmount).toFixed(2) %>
+              </div>
+             </div>
+           </div>
+
+           <div class="col-12 col-md-6 col-lg-3">
+            <div class="metric-card bg-light border">
+              <div class="metric-label">Amount Used</div>
+              <div class="metric-value">$<%= Number(costSum.total_cost).toFixed(2) %></div>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-3">
+            <% if ((Number(deposit.depositAmount) - Number(costSum.total_cost)) > 0){ %>
+              <div class="metric-card" style="background:#f2fff0; border:1px solid #71a972;">
+                <div class="metric-label">Gained</div>
+                  <div class="metric-value">
+                    $<%= (Number(deposit.depositAmount) - Number(costSum.total_cost)).toFixed(2) %>
+                  </div>
+            <% } else { %>
+              <div class="metric-card" style="background:#fdf3f3; border:1px solid #dd9999;">
+                <div class="metric-label">Lost</div>
+                  <div class="metric-value">
+                    $<%= Math.abs((Number(deposit.depositAmount) - Number(costSum.total_cost)).toFixed(2)) %>
+                  </div>
+            <% } %>
+            </div>
+          </div>
+          
+          <div class="col-12 col-md-6 col-lg-3">
+            <div class="metric-card bg-light border">
+              <div class="metric-label">End Balance</div>
+              <div class="metric-value">$<%= Number((deposit.startBalance + deposit.depositAmount) - costSum.total_cost).toFixed(2) %></div>
+            </div>
+          </div>
+        </div>
+
+         
+ 
+         <!-- Charts -->
+         <div class="text-center mb-5">
+           <h3 class="h5 mb-3">Amount Spent per Category</h3>
+           <img 
+             src="/images/graphs/categorySpending<%= deposit.depositID %>.png?v=<%= Date.now() %>"
+             alt="Category Spending"
+             class="analysis-image shadow-sm rounded mb-4">
+ 
+           <h3 class="h5 mb-3">Average Spending Across All Payment Periods</h3>
+           <img 
+             src="/images/graphs/allCategoriesCostsAccount<%=deposit.accountID%>.png?v=<%= Date.now() %>"
+             alt="Average category spending"
+             class="analysis-image shadow-sm rounded">
+         </div>
+ 
+         <!-- AI Section -->
+         <!-- AI Section -->
+<h3 class="h5 mb-2">AI-Based Recommendations</h3>
+
+<div class="subsection" id="aiBox"
+     data-deposit-id="<%= deposit && deposit.depositID ? deposit.depositID : '' %>">
+
+  <!-- Loading -->
+  <div class="ai-loading d-flex align-items-center gap-2">
+    <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+    <div>Generating your summary…</div>
+  </div>
+
+  <!-- AI Content -->
+  <div class="ai-content d-none"></div>
+
+  <!-- Error -->
+  <div class="ai-error text-danger d-none">
+    Couldn’t generate AI summary. Try refreshing.
+  </div>
+    </div>
+
+    <script>
+      (function () {
+        const aiBox = document.getElementById('aiBox');
+        if (!aiBox) return;
+
+        const loadingEl = aiBox.querySelector('.ai-loading');
+        const contentEl = aiBox.querySelector('.ai-content');
+        const errorEl   = aiBox.querySelector('.ai-error');
+
+        const depositID = aiBox.dataset.depositId;
+
+        function hideLoading() {
+          loadingEl.classList.add('d-none');
+          loadingEl.classList.remove('d-flex');
+        }
+
+        function showError() {
+          errorEl.classList.remove('d-none');
+        }
+
+        if (!depositID) {
+          hideLoading();
+          showError();
+          return;
+        }
+
+        fetch(`/analysisAI/${encodeURIComponent(depositID)}`)
+          .then(r => r.json())
+          .then(data => {
+            hideLoading();
+
+            if (data && data.html) {
+              contentEl.innerHTML = data.html;   // AI returns <div>...</div>
+              contentEl.classList.remove('d-none');
+            } else {
+              showError();
+            }
+          })
+          .catch(() => {
+            hideLoading();
+            showError();
+          });
+      })();
+    </script>
+
+
+ 
+       </div>
+     </div>
+   </div>
+ 
+ </body>
+ </html>
+ 

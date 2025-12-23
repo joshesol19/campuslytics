@@ -1,0 +1,217 @@
+<!-- Name: Joshua Solano
+ Project: Finance Project
+ Page: Welcome (New User)
+ Description: Onboarding page for brand new accounts (age = 'N') -->
+ <!DOCTYPE html>
+ <html lang="en">
+ <head>
+   <meta charset="UTF-8" />
+   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   <title>Welcome</title>
+   <link rel="icon" type="image/png" href="/images/favicon.png">
+ 
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+ 
+   <style>
+     body {
+       background-color: #f5f5f5;
+       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       min-height: 100vh;
+     }
+ 
+     .navbar-brand {
+       font-weight: 600;
+     }
+ 
+     .card {
+       border-radius: 14px;
+       box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+       border: none;
+     }
+ 
+     .btn-sm {
+       padding-inline: 0.6rem;
+     }
+ 
+     .btn-primary {
+       background-color: #FF4E00;
+       border-color: #FF4E00;
+       transition: all .2s ease;
+     }
+ 
+     .btn-primary:hover {
+       background-color: #ff7a33;
+       border-color: #ff7a33;
+       transform: translateY(-2px);
+       box-shadow: 0 4px 10px rgba(255, 78, 0, 0.25);
+     }
+ 
+     .small-muted {
+       color: #6c757d;
+       font-size: .95rem;
+     }
+ 
+     .option-card {
+       border-radius: 14px;
+       background-color: #fff;
+       padding: 1.25rem;
+       border: 1px solid #e2e3e5;
+       transition: 0.2s ease;
+       height: 100%;
+     }
+ 
+     .option-card:hover {
+       transform: translateY(-2px);
+       box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+     }
+ 
+     .icon-bubble {
+       width: 44px;
+       height: 44px;
+       border-radius: 14px;
+       display: flex;
+       align-items: center;
+       justify-content: center;
+       font-size: 1.2rem;
+       border: 1px solid rgba(0,0,0,.06);
+       background: #fff;
+     }
+ 
+     .primary-action {
+       border-radius: 12px;
+     }
+   </style>
+ </head>
+ 
+ <body>
+   <!-- NAVBAR (matches your other pages) -->
+   <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+     <div class="container">
+       <a class="navbar-brand" href="/login">College Finances</a>
+ 
+       <div class="ms-auto d-flex gap-2">
+         <% if (loggedIn) { %>
+           <form action="/logout" method="get" class="m-0">
+             <button type="submit" class="btn btn-outline-secondary btn-sm">
+               Logout
+             </button>
+           </form>
+         <% } else { %>
+           <form action="/login" method="get" class="m-0">
+             <button type="submit" class="btn btn-primary btn-sm">
+               Login
+             </button>
+           </form>
+         <% } %>
+ 
+         <form action="/login" method="get" class="m-0">
+           <button type="submit" class="btn btn-outline-primary btn-sm">
+             Home
+           </button>
+         </form>
+       </div>
+     </div>
+   </nav>
+ 
+   <div class="container my-5" style="max-width: 960px;">
+     <div class="card p-4 p-lg-5">
+       <h1 class="h3 mb-2">Welcome!</h1>
+       <p class="small-muted mb-4">
+         Welcome to your next step to managing your income. This site helps you track deposits and withdrawals, see where your money goes,
+         and get analysis that actually makes budgeting easier. You are going to need to import your purchases
+         and your incoming deposits. Pick one option below to get started.
+       </p>
+ 
+       <% if (error) { %>
+         <div class="alert alert-danger mb-4">
+           <strong>Heads up:</strong> <%= error %>
+         </div>
+       <% } %>
+ 
+       <div class="row g-4">
+         <!-- Manual Option -->
+         <div class="col-12 col-lg-6">
+           <div class="option-card">
+             <div class="d-flex align-items-start gap-3 mb-3">
+               <div class="icon-bubble">✍️</div>
+               <div>
+                 <div class="fw-semibold fs-5">Enter manually</div>
+                 <div class="small-muted">
+                   Best if you want to start simple: add deposits and withdrawals as you go.
+                 </div>
+                 <br>
+                 <div class="small-muted">
+                    Add a few and deposit peroids and their withdrawals, and keep adding!
+                  </div>
+               </div>
+             </div>
+ 
+             <ul class="small-muted mb-3">
+               <li>Good for learning your categories</li>
+               <li>Cleanest data long-term</li>
+               <li>Works even without statements</li>
+               <li>Reliable</li>
+             </ul>
+ 
+             <!-- Initial Balance + Submit to /startManually -->
+             <form action="/startManually" method="post" class="mt-3">
+               <label for="initialBalance" class="form-label fw-semibold">
+                 Initial Balance ($)
+               </label>
+               <input
+                 type="number"
+                 step="0.01"
+                 min="0"
+                 class="form-control mb-3"
+                 id="initialBalance"
+                 name="initialBalance"
+                 placeholder="0.00"
+                 required
+               />
+ 
+               <button type="submit" class="btn btn-outline-secondary w-100 primary-action">
+                 Start manually
+               </button>
+             </form>
+           </div>
+         </div>
+ 
+         <!-- CSV Option -->
+         <div class="col-12 col-lg-6">
+           <div class="option-card">
+             <div class="d-flex align-items-start gap-3 mb-3">
+               <div class="icon-bubble">📄</div>
+               <div>
+                 <div class="fw-semibold fs-5">Import a CSV (Not yet available)</div>
+                 <div class="small-muted">
+                   Upload a bank/card CSV and we’ll map it into your deposits/withdrawals for you.
+                </div>
+                <br>
+                <div class="small-muted">
+                   You’ll be able to confirm the transactions before anything is saved and edit them later.
+                 </div>
+
+               </div>
+             </div>
+             <br>
+ 
+             <ul class="small-muted mb-4">
+               <li>Fastest way to import history</li>
+               <li>Preview before saving</li>
+               <li>Handles different bank formats</li>
+               <li>Not as reliable -- should double check results</li>
+             </ul>
+             <br>
+             <br>
+             <a href="/importCSV" class="btn btn-primary w-100 primary-action">
+               Import CSV (Coming Soon)
+             </a>
+           </div>
+         </div>
+       </div>
+ 
+       
+   </div>
+ </body>
+ </html>
+ 

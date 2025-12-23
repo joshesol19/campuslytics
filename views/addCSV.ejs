@@ -1,0 +1,280 @@
+<!-- Name: Joshua Solano
+ Project: Finance Project
+ Page: Import CSV
+ Description: Upload a bank CSV and import transactions -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Import CSV</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      background: linear-gradient(135deg, #f7f7f7 0%, #ececec 100%);
+      min-height: 100vh;
+    }
+
+    .topbar {
+      background: #f1f1f1;
+      border-bottom: 1px solid #dedede;
+    }
+
+    .topbar .btn {
+      border-radius: 999px;
+    }
+
+    .card {
+      border: 0;
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.06);
+    }
+
+    .badge-soft {
+      background: rgba(13,110,253,.08);
+      color: #0d6efd;
+      border: 1px solid rgba(13,110,253,.18);
+    }
+
+    .dropzone {
+      border: 2px dashed #cfcfcf;
+      border-radius: 16px;
+      padding: 22px;
+      background: #fff;
+      transition: .15s ease-in-out;
+      cursor: pointer;
+    }
+
+    .dropzone:hover {
+      border-color: #0d6efd;
+      box-shadow: 0 6px 18px rgba(13,110,253,.08);
+    }
+
+    .file-pill {
+      border-radius: 999px;
+      background: #f6f6f6;
+      border: 1px solid #e6e6e6;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: .95rem;
+    }
+
+    .small-muted {
+      color: #6c757d;
+      font-size: .92rem;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Top Bar -->
+  <div class="topbar py-3">
+    <div class="container d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge badge-soft px-3 py-2">Import</span>
+        <span class="fw-semibold">CSV Bank Transactions</span>
+      </div>
+
+      <div class="d-flex gap-2">
+        <form action="/" method="get" class="m-0">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">Home</button>
+        </form>
+
+        <form action="/displayDeposits" method="get" class="m-0">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">Deposits</button>
+        </form>
+
+        <form action="/logout" method="get" class="m-0">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Logout</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="container my-5" style="max-width: 920px;">
+    <div class="row g-4">
+      <div class="col-12 col-lg-7">
+        <div class="card p-4 p-lg-5">
+          <h1 class="h4 mb-2">Import a CSV</h1>
+          <p class="small-muted mb-4">
+            Upload a CSV from your bank/card provider. We’ll use it to import the transactions to your account.
+          </p>
+
+          <!-- Alerts -->
+          <% if (typeof error !== "undefined" && error) { %>
+            <div class="alert alert-danger">
+              <strong>Import failed:</strong> <%= error %>
+            </div>
+          <% } %>
+
+          <% if (typeof success !== "undefined" && success) { %>
+            <div class="alert alert-success">
+              <strong>Imported!</strong> <%= success %>
+            </div>
+          <% } %>
+
+          <form action="/importCSV" method="POST" enctype="multipart/form-data" id="importForm">
+            <!-- CSV Dropzone -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">CSV file</label>
+
+              <div class="dropzone" id="dropzone" tabindex="0">
+                <div class="d-flex align-items-start gap-3">
+                  <div class="fs-4">📄</div>
+                  <div>
+                    <div class="fw-semibold">Drag & drop your CSV here</div>
+                    <div class="small-muted">or click to choose a file (.csv)</div>
+                  </div>
+                </div>
+
+                <input
+                  class="form-control d-none"
+                  type="file"
+                  name="csvfile"
+                  id="csvfile"
+                  accept=".csv,text/csv"
+                  required
+                />
+              </div>
+
+              <div class="mt-3 d-none" id="fileInfo">
+                <div class="file-pill">
+                  <div class="text-truncate" id="fileName">file.csv</div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="clearFile">
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-text">
+                Tip: export “Transactions” from your bank portal. If it’s an .xlsx, export as CSV first.
+              </div>
+            </div>
+
+            <!-- Optional metadata (helps you + AI) -->
+            <div class="row g-3">
+
+              <div class="col-12">
+                <label class="form-label fw-semibold">Notes (optional)</label>
+                <textarea
+                  class="form-control"
+                  name="notes"
+                  rows="3"
+                  placeholder="Anything you want stored with the import..."
+                  maxlength="300"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between mt-4">
+              <a href="/displayDeposits" class="btn btn-outline-secondary">
+                Back
+              </a>
+
+              <button type="submit" class="btn btn-primary" id="submitBtn">
+                Import CSV
+              </button>
+            </div>
+
+            <div class="small-muted mt-3">
+              We’ll validate before writing to your account.
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right-side info panel -->
+      <div class="col-12 col-lg-5">
+        <div class="card p-4">
+          <h2 class="h6 mb-3">What happens next</h2>
+          <ul class="small-muted mb-0">
+            <li class="mb-2">We read your CSV and normalize dates/amounts.</li>
+            <li class="mb-2">We map columns (provider formats differ).</li>
+            <li class="mb-2">We categorize and insert into your withdrawals/deposits tables.</li>
+            <li class="mb-2">If the file is ambiguous, we’ll show an error instead of guessing.</li>
+          </ul>
+        </div>
+
+        <div class="card p-4 mt-4">
+          <h2 class="h6 mb-2">Common issues</h2>
+          <div class="small-muted">
+            <div class="mb-2"><strong>Wrong file type:</strong> must be .csv</div>
+            <div class="mb-2"><strong>Headers missing:</strong> CSV needs a header row</div>
+            <div class="mb-0"><strong>Duplicates:</strong> importing the same statement twice may duplicate transactions unless you dedupe</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const dropzone = document.getElementById("dropzone");
+      const fileInput = document.getElementById("csvfile");
+      const fileInfo = document.getElementById("fileInfo");
+      const fileName = document.getElementById("fileName");
+      const clearFile = document.getElementById("clearFile");
+      const submitBtn = document.getElementById("submitBtn");
+
+      function setFileUI(file) {
+        if (!file) {
+          fileInfo.classList.add("d-none");
+          fileName.textContent = "";
+          submitBtn.disabled = false;
+          return;
+        }
+
+        fileName.textContent = file.name;
+        fileInfo.classList.remove("d-none");
+      }
+
+      // Click dropzone -> open file chooser
+      dropzone.addEventListener("click", () => fileInput.click());
+
+      // Keyboard accessibility
+      dropzone.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") fileInput.click();
+      });
+
+      // File selected
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files && fileInput.files[0];
+        setFileUI(file);
+      });
+
+      // Drag & drop support
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+      });
+
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const files = e.dataTransfer.files;
+        if (!files || files.length === 0) return;
+
+        // Only accept one
+        const file = files[0];
+        if (!file.name.toLowerCase().endsWith(".csv")) {
+          alert("Please upload a .csv file.");
+          return;
+        }
+
+        fileInput.files = files;
+        setFileUI(file);
+      });
+
+      // Clear
+      clearFile.addEventListener("click", () => {
+        fileInput.value = "";
+        setFileUI(null);
+      });
+    })();
+  </script>
+</body>
+</html>
