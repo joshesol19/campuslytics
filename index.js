@@ -65,11 +65,11 @@ app.use(
 const knex = require("knex")({
     client: "pg",
     connection: {
-        host : process.env.DB_HOST || "localhost",
-        user : process.env.DB_USER || "joshuasolano",
-        password : process.env.DB_PASSWORD,
-        database : process.env.DB_NAME || "financeProject",
-        port : process.env.DB_PORT || 5432  // PostgreSQL 16 typically uses port 5434
+        host : process.env.RDS_HOST || process.env.DB_HOST || "localhost",
+        user : process.env.RDS_USERNAME || process.env.DB_USER || "joshuasolano",
+        password : process.env.RDS_PASSWORD || process.env.DB_PASSWORD,
+        database : process.env.RDS_DB_NAME || process.env.DB_NAME || "financeProject",
+        port : process.env.RDS_PORT ||process.env.DB_PORT || 5432  // PostgreSQL 16 typically uses port 5434
     }
 });
 
