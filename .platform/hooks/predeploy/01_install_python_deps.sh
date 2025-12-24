@@ -8,6 +8,5 @@ else
   yum -y install python3 python3-pip
 fi
 
-# install your python deps (best: keep them in python/requirements.txt)
-python3 -m pip install --upgrade pip
-python3 -m pip install -r python/requirements.txt
+# DON'T upgrade pip (it's rpm-managed and will fail)
+python3 -m pip install -r requirements.txt --no-cache-dir
