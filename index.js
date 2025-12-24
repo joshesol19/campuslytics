@@ -1329,8 +1329,7 @@ app.get('/analysisAI/:depositID', (req, res) => {
       py.on('error', (err) => {
         console.error('Python spawn failed:', err);
         return res.status(500).json({ error: 'AI generation failed' });
-      });
-      
+      });      
     })
     .catch((err) => {
       console.error(err);
