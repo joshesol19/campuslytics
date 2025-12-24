@@ -81,7 +81,7 @@ app.use(express.urlencoded({extended: true}));
 
 const { spawn } = require('child_process');
 
-const PYTHON = path.join(__dirname, '.venv', 'bin', 'python');
+const PYTHON = process.env.PYTHON_BIN || "python3";
 const scriptPath = path.join(__dirname, 'python', 'analysis.py');
 
 //////////////////////////////////////////////
@@ -1233,7 +1233,20 @@ app.get('/displayAnalysis/:depositID', (req, res) => {
 
 
                       let pyOutput = '';
+                      let pyErr = "";
                       py.stdout.on('data', (data) => { pyOutput += data.toString(); });
+                      py.stderr.on("data", (d) => (pyErr += d.toString()));
+
+                      py.on("error", (err) => {
+                        console.error("Python spawn failed:", err);
+                        return res.status(500).send("Python not available on server.");
+                      });
+                      
+                      py.on("close", (code) => {
+                        if (code !== 0) {
+                          console.error("Python exited nonzero:", code, pyErr);
+                          return res.status(500).send("Analysis failed on server.");
+                        }
 
                       py.on('close', () => {
                         let analysis = { AI_Recomendation: '' };
