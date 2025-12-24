@@ -157,9 +157,7 @@ if mode == "fast":
 # AI MODE: call AI and return only the AI html (or also include basics if you want)
 payload_json = json.dumps(payload, default=str)
 
-
-response = client.chat.completions.create(
-    input=f"""
+prompt = f"""
    You are a financial coach for a nontechnical audience.
     
     You will be given JSON with:
@@ -243,10 +241,15 @@ response = client.chat.completions.create(
     DATA(JSON):
     {payload_json}
 
-    """,
+    """
+resp = client.chat.completions.create(
     model="openai/gpt-oss-20b",
+    messages=[
+        {"role": "user", "content": prompt}
+    ],
+    temperature=0.3,
 )
 
-ai_html = response.output[1].content[0].text
-
+ai_html = resp.choices[0].message.content or ""
 print(json.dumps({"AI_Recomendation": ai_html}, default=str))
+sys.stdout.flush()
