@@ -829,7 +829,7 @@ app.get('/addWithdrawal/:depositID', (req, res) => {
     }
 })
 
-// the point of this post is to add a workshop. only admins can visit it 
+// the point of this post is to add a workshop. only admins can visit it
 app.post('/addWithdrawal/:depositID', (req, res)=>{
     const { date, category, subcategory, location, cost, notes, onlineFlag} = req.body;
     const accountID = req.session.accountID;
@@ -843,8 +843,8 @@ app.post('/addWithdrawal/:depositID', (req, res)=>{
     }
 
     // insert newly stored withdrawal into the workshop table and then redirect
-    knex('withdrawals') 
-    .max('withdrawalID as maxID') 
+    knex('withdrawals')
+    .max('withdrawalID as maxID')
     .first()
     .then((maxID) => {
         // store new withdrawal
@@ -1000,7 +1000,7 @@ app.get('/editWithdrawal/:withdrawalID', (req, res)=> {
     } else {
       res.render('editWithdrawal',
         {withdrawal : selectedwithdrawal,
-         'error_message' : ''
+        'error_message' : ''
         }
       )
     }
@@ -1233,31 +1233,35 @@ app.get('/displayAnalysis/:depositID', (req, res) => {
 
 
                       let pyOutput = '';
-                      let pyErr = "";
-                      py.stdout.on('data', (data) => { pyOutput += data.toString(); });
-                      py.stderr.on("data", (d) => (pyErr += d.toString()));
+                      let pyErr = '';
 
-                      py.on("error", (err) => {
-                        console.error("Python spawn failed:", err);
-                        return res.status(500).send("Python not available on server.");
+                      py.stdout.on('data', (data) => { pyOutput += data.toString(); });
+                      py.stderr.on('data', (data) => { pyErr += data.toString(); });
+
+                      py.on('error', (err) => {
+                        console.error('Python spawn failed:', err);
+                        return res.status(500).send('Python not available on server.');
                       });
-                      
-                      py.on("close", (code) => {
+
+                      py.on('close', (code) => {
                         if (code !== 0) {
-                          console.error("Python exited nonzero:", code, pyErr);
-                          return res.status(500).send("Analysis failed on server.");
+                          console.error('Python exited nonzero:', code, pyErr);
+                          return res.status(500).send('Analysis failed on server.');
                         }
 
-                      py.on('close', () => {
                         let analysis = { AI_Recomendation: '' };
+
                         try {
                           const parsed = JSON.parse(pyOutput);
-                          analysis.payload = parsed.payload; // optional if you want it later
+                          analysis.payload = parsed.payload; // optional
                         } catch (e) {
-                          console.error('Error parsing FAST Python output', e);
+                          console.error('Error parsing FAST Python output:', e);
+                          console.error('RAW pyOutput:', pyOutput);
+                          console.error('RAW pyErr:', pyErr);
+                          return res.status(500).send('Bad output from analysis script.');
                         }
 
-                        res.render('displayAnalysis', {
+                        return res.render('displayAnalysis', {
                           error_message: withdrawals ? '' : 'No Withdrawls found for this payment peroid',
                           loggedIn: req.session.isLoggedIn,
                           username: req.session.username,
