@@ -158,7 +158,7 @@ if mode == "fast":
 payload_json = json.dumps(payload, default=str)
 
 
-response = client.responses.create(
+response = client.chat.completions.create(
     input=f"""
    You are a financial coach for a nontechnical audience.
     
