@@ -7,7 +7,7 @@
 require('dotenv').config();
 
 
-const express = require("express"); 
+const express = require("express");
 
 //Needed for the session variable - Stored on the server to hold data
 const session = require("express-session");
@@ -399,7 +399,7 @@ app.get('/displayDeposits', (req, res, next) => {
       } else {
         res.render('editDeposit',
           {deposit : selectedDeposit,
-           'error_message' : ''
+          'error_message' : ''
           }
         )
       }
