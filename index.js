@@ -1309,17 +1309,28 @@ app.get('/analysisAI/:depositID', (req, res) => {
       py.stdout.on('data', (d) => { pyOutput += d.toString(); });
       py.stderr.on('data', (d) => { pyErr += d.toString(); });
 
-      py.on('close', () => {
+      py.on('close', (code) => {
         if (pyErr) console.error('Python AI stderr:', pyErr);
-
-        try {
-          const parsed = JSON.parse(pyOutput);
-          return res.json({ html: parsed.AI_Recomendation || '' });
-        } catch (e) {
-          console.error('Error parsing AI output:', e);
+      
+        if (code !== 0 || !pyOutput.trim()) {
           return res.status(500).json({ error: 'AI generation failed' });
         }
+      
+        let parsed;
+        try {
+          parsed = JSON.parse(pyOutput);
+        } catch (e) {
+          console.error('Bad JSON from python:', pyOutput);
+          return res.status(500).json({ error: 'AI generation failed' });
+        }
+      
+        return res.json({ html: parsed.AI_Recomendation || '' });
       });
+      py.on('error', (err) => {
+        console.error('Python spawn failed:', err);
+        return res.status(500).json({ error: 'AI generation failed' });
+      });
+      
     })
     .catch((err) => {
       console.error(err);
