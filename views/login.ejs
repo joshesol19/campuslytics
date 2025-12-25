@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <title>Login</title>
+
   <link rel="icon" type="image/png" href="/images/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/png" href="/images/favicon.png">
 
   <!-- Bootstrap -->
   <link
@@ -14,44 +14,87 @@
   >
 
   <style>
-    /* Make page fill the viewport */
+    html {
+      scroll-behavior: smooth;
+    }
+
     html, body {
       height: 100%;
       margin: 0;
     }
-  
-    /* Let Bootstrap handle most layout, keep body neutral */
+
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background-color: #f8f9fa;
     }
-  
-    /* Make the full row stretch to full height */
+
     .container-fluid,
     .row {
       min-height: 100vh;
     }
-  
-    /* LEFT HALF: gradient panel */
+
+    /* LEFT PANEL — desktop: left anchored like register */
     .left-panel {
       background: linear-gradient(135deg, #FF8A00, #FF4E00);
       color: #fff;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 3rem;
+      align-items: center;              /* vertical center */
+      justify-content: flex-start;      /* push content left */
+      padding: 2.5rem;
+      position: relative;
+      text-align: left;
     }
-  
-    .left-panel h1 {
+
+    .left-panel-content {
+      max-width: 420px;
+    }
+
+    .brand-title {
       margin-bottom: 0.75rem;
+      line-height: 1.1;
     }
-  
+
+    .brand-name {
+      display: block;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-tagline {
+      display: block;
+      margin-top: 0.35rem;
+      font-weight: 600;
+      font-size: 1.25rem;
+      opacity: 0.9;
+    }
+
     .left-panel p {
       margin: 0;
-      max-width: 320px;
+      max-width: 360px;
     }
-  
-    /* RIGHT HALF: center login card vertically + horizontally in its column */
+
+    /* Scroll hint */
+    .scroll-hint {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 16px;
+      text-align: center;
+      padding: 0 1rem;
+    }
+
+    .scroll-link {
+      color: rgba(255, 255, 255, 0.92);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+    }
+
+    .scroll-link:hover {
+      color: #fff;
+    }
+
+    /* RIGHT PANEL */
     .login-wrapper {
       display: flex;
       align-items: center;
@@ -59,52 +102,104 @@
       background-color: #f8f9fa;
       padding: 2rem 1rem;
     }
-  
-    /* Optional: round card a bit more */
+
     .login-wrapper .card {
       border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.06);
+      border: none;
     }
-  
+
     .btn-primary {
       background-color: #FF4E00;
       border-color: #FF4E00;
       transition: all 0.2s ease-in-out;
+      font-weight: 600;
     }
 
     .btn-primary:hover {
-      background-color: #ff7a33; /* lighter orange */
+      background-color: #ff7a33;
       border-color: #ff7a33;
-      transform: translateY(-3px); /* move up */
-      box-shadow: 0px 4px 10px rgba(255, 78, 0, 0.3); /* optional but makes it feel cleaner */
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 78, 0, 0.35);
     }
 
-    a.text-muted:hover {
-      color: #FF4E00 !important;
-      }
-    
+    /* =========================
+       MOBILE: FULLSCREEN + SNAP
+       ========================= */
+    @media (max-width: 767.98px) {
 
+      /* Enable snap on the page scroll */
+      html, body {
+        scroll-snap-type: y mandatory;
+        overscroll-behavior-y: contain; /* reduces weird bounce chaining */
+      }
+
+      /* Each section is a snap point */
+      .left-panel,
+      .login-wrapper {
+        min-height: 100vh;
+        scroll-snap-align: start;
+        scroll-snap-stop: always; /* helps prevent stopping between */
+      }
+
+      .left-panel {
+        justify-content: center;
+        text-align: center;
+        padding: 3rem 2rem;
+      }
+
+      .left-panel-content {
+        margin: 0 auto;
+      }
+
+      .login-wrapper {
+        padding: 2.5rem 1rem;
+      }
+
+      .brand-name {
+        font-size: 3rem;
+      }
+
+      .brand-tagline {
+        font-size: 1.15rem;
+      }
+    }
   </style>
 </head>
 
 <body>
 
-  <div class="container-fluid">
-    <div class="row">
+  <div class="container-fluid p-0">
+    <div class="row g-0">
 
-      <!-- LEFT HALF -->
-      <div class="col-md-6 left-panel d-none d-md-flex">
-        <div>
-          <h1 class="display-4 fw-bold">College Financial Analysis/Tracker</h1>
-          <p class="lead">Log in to manage your finances each payment peroid and view an analysis.</p>
+      <!-- LEFT PANEL -->
+      <div class="col-md-6 left-panel">
+        <div class="left-panel-content">
+          <h1 class="brand-title">
+            <span class="brand-name display-4">CampusLytics</span>
+            <span class="brand-tagline">Financial Clarity for Campus Life</span>
+          </h1>
+
+          <p class="lead">
+            Helps students like you keep track of where your money goes during each pay period.
+            Clear breakdowns and insights help you make smarter decisions without overthinking your finances.
+          </p>
+
+          <!-- MOBILE ONLY -->
+          <div class="scroll-hint d-md-none">
+            <a href="#login" class="scroll-link">Scroll To Begin</a>
+            <br>
+            <a href="#login" class="scroll-link">↓</a>
+          </div>
         </div>
       </div>
 
-      <!-- RIGHT HALF -->
-      <div class="col-md-6 login-wrapper bg-light">
-        <div class="card shadow-sm p-4" style="width: 100%; max-width: 380px;">
+      <!-- RIGHT PANEL -->
+      <div class="col-md-6 login-wrapper" id="login">
+        <div class="card p-4" style="width: 100%; max-width: 380px;">
           <h1 class="h4 mb-3 text-center">Login</h1>
 
-          <form action="/login" method="POST" id="loginForm">
+          <form action="/login" method="POST">
 
             <div class="mb-3">
               <label class="form-label">Username</label>
@@ -113,7 +208,7 @@
 
             <div class="mb-3">
               <label class="form-label">Password</label>
-              <input type="password" class="form-control" name="password" placeholder="Enter your passowrd" required>
+              <input type="password" class="form-control" name="password" placeholder="Enter your password" required>
             </div>
 
             <button type="submit" class="btn btn-primary w-100 mb-3">
@@ -124,17 +219,14 @@
               <div class="alert alert-warning p-2 text-center">
                 <%= error_message %>
               </div>
-              <% } %>
-              
+            <% } %>
+
             <div class="text-center mt-3">
               <p class="text-muted mb-1">Don't have an account?</p>
-              <a href="/register" style="color:#ff4e00;">Sign-up</a>
+              <a href="/register" style="color:#FF4E00;">Sign-up</a>
             </div>
-  
 
           </form>
-
-          
         </div>
       </div>
 
