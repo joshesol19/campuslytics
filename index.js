@@ -62,7 +62,8 @@ app.use(
 );
 
 // sets up sql use
-// sets up sql use
+const isProd = process.env.NODE_ENV === 'production';
+
 const knex = require('knex')({
   client: 'pg',
   connection: {
@@ -70,11 +71,10 @@ const knex = require('knex')({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT || 5432,
-    ssl: { rejectUnauthorized: false }
-  }
+    port: Number(process.env.DB_PORT) || 5432,
+    ssl: isProd ? { rejectUnauthorized: false } : false,
+  },
 });
-
 
 // Tells Express how to read form data sent in the body of a request
 app.use(express.urlencoded({extended: true}));
@@ -205,7 +205,7 @@ app.post('/login', (req, res) => {
       req.session.lastName = users.lastName;
       req.session.accountID = users.accountID;
 
-      //  render welcome page if new user, selse index
+      //  render welcome page if new user, else index
       if (users.age === 'N' & req.session.level === 'M') {
         knex('users')
           .where({ username: sName })
@@ -287,7 +287,7 @@ app.get('/displayDeposits', (req, res, next) => {
   
         knex('deposits')
           .where('accountID', accountID)
-          .orderBy('depositDate', 'asc')
+          .orderBy('depositDate', 'desc')
           .then((deposits) => {
   
             // If no deposits, just render empty
@@ -306,29 +306,6 @@ app.get('/displayDeposits', (req, res, next) => {
               .select('depositID')
               .sum({ totalCost: 'cost' })
               .then((withdrawalSummary) => {
-  
-                // Build lookup: depositID -> total withdrawal cost
-                const withdrawalMap = {};
-                withdrawalSummary.forEach((w) => {
-                  withdrawalMap[w.depositID] = Number(w.totalCost);
-                });
-  
-                // Running balance calc
-                const initialBalance = Number(account.initialBalance || 0);
-                let runningBalance = initialBalance;
-  
-                deposits.forEach((d) => {
-                  const depositAmount = Number(d.depositAmount || 0);
-                  const totalWithdrawals = withdrawalMap[d.depositID] || 0;
-  
-                  d.startBalance = runningBalance;
-                  d.endBalance = runningBalance + depositAmount - totalWithdrawals;
-  
-                  runningBalance = d.endBalance;
-                });
-  
-                deposits.reverse();
-                // Render ONCE, outside the forEach
                 res.render('displayDeposits', {
                   deposits,
                   error_message: '',
@@ -349,37 +326,74 @@ app.get('/displayDeposits', (req, res, next) => {
     if (!req.session.isLoggedIn){
         console.log('not logged in')
     } else {
+      knex('deposits')
+      .where('accountID', req.session.accountID)
+      .then((deposits)=>{
         res.render('addDeposit', {
-            error_message: null,
-            loggedIn: true
-          });
+          error_message: null,
+          loggedIn: true,
+          deposits
+        });
+      })
     }
   
 
   });
 
-  app.post('/addDeposit', async (req, res) => {
-    if (!req.session.isLoggedIn) return res.redirect('/login');
+  app.post('/addDeposit', async (req, res, next) => {
+    try {
+      if (!req.session.isLoggedIn) return res.redirect('/login');
   
-    const { depositDate, depositAmount, hoursWorked, notes } = req.body;
-    const accountID = req.session.accountID
+      const accountID = req.session.accountID;
   
-    const newDeposit = {
+      const {
         depositDate,
         depositAmount,
         hoursWorked,
         notes,
+        startBalanceMode,
+        startBalanceValue,   // <-- from hidden input
+        previousDepositId    // <-- from dropdown
+      } = req.body;
+  
+      const depAmt = depositAmount === "" ? null : Number(depositAmount);
+      const hrs    = hoursWorked === "" ? null : Number(hoursWorked);
+  
+      // pick start balance from the hidden field (works for BOTH modes)
+      const startBal = startBalanceValue === "" || startBalanceValue == null
+        ? null
+        : Number(startBalanceValue);
+  
+      if (!Number.isFinite(depAmt)) {
+        return res.status(400).send("depositAmount must be a number");
+      }
+      if (startBal == null || !Number.isFinite(startBal)) {
+        return res.status(400).send("startBalance is missing/invalid (startBalanceValue)");
+      }
+  
+      const endBal = startBal + depAmt;
+  
+      const newDeposit = {
+        depositDate,
+        depositAmount: depAmt,
+        hoursWorked: hrs,
+        notes,
+        startBalance: startBal,
+        endBalance: endBal,
         accountID
       };
   
-    knex('deposits')
-    .insert(newDeposit)
-    .then((deposit) => {
-        res.redirect('/displayDeposits');
-    })
+      await knex('deposits').insert(newDeposit);
+      res.redirect('/displayDeposits');
+    } catch (err) {
+      next(err);
+    }
   });
+  
 
   app.get('/editDeposit/:depositID', (req, res) => {
+    if (!req.session.isLoggedIn) return res.redirect('/login');
+
     knex('deposits')
     .where('depositID', req.params.depositID)
     .first()
@@ -397,127 +411,104 @@ app.get('/displayDeposits', (req, res, next) => {
         }
         )
       } else {
-        res.render('editDeposit',
-          {deposit : selectedDeposit,
-          'error_message' : ''
-          }
-        )
+        knex('deposits')
+        .where('accountID', req.session.accountID)
+        .then((deposits) => {
+          res.render('editDeposit',
+            {deposit : selectedDeposit,
+              deposits,
+            'error_message' : ''
+            }
+          )
+        })
+        
       }
     })
   });
 
-  app.post('/editDeposit/:depositID', (req,res) =>{
-    //grab the vairables the deposit would like to edit the data row to be
-    const { depositDate, depositAmount, hoursWorked, notes } = req.body;
-    // another paramter in case some how the form gets submitted without the fields filled
-    if ( !depositDate || !depositAmount ) {
-        return knex("deposits")
-            .where({ depositID: req.params.depositID })
-            .first()
-            .then((deposits) => {
 
-                if (!deposits) {
-                    return res.status(404).render("index", {
-                      loggedIn : req.session.isLoggedIn,
-                      accountID : req.session.accountID,
-                      username : req.session.username,
-                      level : req.session.level,
-                      firstName : req.session.firstName,
-                      error_message : 'Error in editting'
-                    });
-                }
-                res.status(400).render("index", {
-                  loggedIn : req.session.isLoggedIn,
-                  accountID : req.session.accountID,
-                  username : req.session.username,
-                  level : req.session.level,
-                  firstName : req.session.firstName,
-                  error_message : 'Error in editting'
-                });
-            })
-            // catch errors and rerender with errors
-            .catch((err) => {
-                console.error("Error fetching user:", err.message);
-                res.status(500).render("index", {
-                  loggedIn : req.session.isLoggedIn,
-                  accountID : req.session.accountID,
-                  username : req.session.username,
-                  level : req.session.level,
-                  firstName : req.session.firstName,
-                  error_message : 'Error in editting'
-                });
-            });
-    }
-    // store the new vairables
-    const updatedDeposit = {
-      depositDate,
-      depositAmount,
-      hoursWorked,
-      notes
-    }
-    // add/insert the new vairables into the table in the database
-    knex("deposits")
-        .where({ depositID: req.params.depositID })
-        .update(updatedDeposit)
-        .then((rowsUpdated) => {
-            if (rowsUpdated === 0) {
-                return res.status(404).render("index", {
-                  loggedIn : req.session.isLoggedIn,
-                  accountID : req.session.accountID,
-                  username : req.session.username,
-                  level : req.session.level,
-                  firstName : req.session.firstName,
-                  error_message : 'Error in editting'
-                });
-            }
-            console.log(`User with accountID ${req.session.accountID} editted a deposit`)
-            knex('deposits')
-            .where('accountID', req.session.accountID)
-            .then((deposits) => {
-              res.redirect('/displayDeposits')
-            })
-            
-        })
-        // catch errors and rerender with errors
-        .catch((err) => {
-            console.error("Error updating user:", err.message);
-            knex("users")
-                .where({ depositID: req.params.depositID })
-                .first()
-                .then((deposit) => {
-                    if (!deposit) {
-                        return res.status(404).render("index", {
-                          loggedIn : req.session.isLoggedIn,
-                          accountID : req.session.accountID,
-                          username : req.session.username,
-                          level : req.session.level,
-                          firstName : req.session.firstName,
-                          error_message : 'Error in editting'
-                        });
-                    }
-                    res.status(500).render("index", {
-                      loggedIn : req.session.isLoggedIn,
-                      accountID : req.session.accountID,
-                      username : req.session.username,
-                      level : req.session.level,
-                      firstName : req.session.firstName,
-                      error_message : 'Error in editting'
-                    });
-                })
-                // catch errors and rerender with errors
-                .catch((fetchErr) => {
-                    console.error("Error fetching deposit after update failure:", fetchErr.message);
-                    res.status(500).render("index", {
-                      loggedIn : req.session.isLoggedIn,
-                      accountID : req.session.accountID,
-                      username : req.session.username,
-                      level : req.session.level,
-                      firstName : req.session.firstName,
-                      error_message : 'Error in editting'
-                    });
-                });
-        });
-})
+  app.post('/editDeposit/:depositID', (req, res, next) => {
+    if (!req.session.isLoggedIn) return res.redirect('/login');
+  
+    const depositID = req.params.depositID;
+    const accountID = req.session.accountID;
+  
+    let depAmt, hrs, startBal;
+  
+    knex('deposits')
+      .where('depositID', depositID)
+      .first()
+      .then(existing => {
+        if (!existing) {
+          throw { status: 404, message: 'Deposit not found' };
+        }
+  
+        if (Number(existing.accountID) !== Number(accountID)) {
+          throw { status: 403, message: 'Not authorized to edit this deposit' };
+        }
+  
+        const {
+          depositDate,
+          depositAmount,
+          hoursWorked,
+          notes,
+          startBalanceValue
+        } = req.body;
+  
+        depAmt = depositAmount === "" ? null : Number(depositAmount);
+        hrs = hoursWorked === "" ? null : Number(hoursWorked);
+        startBal = startBalanceValue === "" || startBalanceValue == null
+          ? null
+          : Number(startBalanceValue);
+  
+        if (!Number.isFinite(depAmt)) {
+          throw { status: 400, message: 'depositAmount must be a number' };
+        }
+  
+        if (startBal == null || !Number.isFinite(startBal)) {
+          throw { status: 400, message: 'startBalance is missing or invalid' };
+        }
+  
+        if (hrs != null && !Number.isFinite(hrs)) {
+          throw { status: 400, message: 'hoursWorked must be a number' };
+        }
+  
+        return knex('withdrawals')
+          .where('depositID', depositID)
+          .sum({ totalCosts: 'cost' })
+          .first()
+          .then(totals => {
+            const totalCosts = Number(totals.totalCosts) || 0;
+  
+            const newEndBalance = startBal + depAmt - totalCosts;
+  
+            const updatedDeposit = {
+              depositDate,
+              depositAmount: depAmt,
+              hoursWorked: hrs,
+              notes,
+              startBalance: startBal,
+              endBalance: newEndBalance
+            };
+  
+            return knex('deposits')
+              .where('depositID', depositID)
+              .update(updatedDeposit);
+          });
+      })
+      .then(() => {
+        res.redirect('/displayDeposits');
+      })
+      .catch(err => {
+        if (err.status) {
+          return res.status(err.status).send(err.message);
+        }
+        next(err);
+      });
+  });
+  
+  
+
 
 app.post('/deleteDeposit/:depositID', (req, res) => {
   let depositID = req.params.depositID
@@ -864,9 +855,29 @@ app.post('/addWithdrawal/:depositID', (req, res)=>{
         knex('withdrawals')
         .insert(newWithdrawal)
         .then((withdrawal) => {
+
+            // update endBalance on deposit
+            knex('deposits')
+            .select('endBalance')
+            .where('depositID', depositID)
+            .first()
+            .then((originalEndBalance) => {
+              knex('withdrawals')
+              .sum({ totalCosts: 'cost' }) 
+              .where('depositID', depositID)
+              .first()
+              .then((totalCosts) => {
+                knex('deposits')
+                .where('depositID', depositID)
+                .update({ endBalance: Number(originalEndBalance.endBalance - totalCosts.totalCosts) })
+                .then((done) => {
+                  const redirectUrl = `/displayWithdrawl/${depositID}`;
+                  res.redirect(redirectUrl);
+                })
+              })
+            })
             
-            const redirectUrl = `/displayWithdrawl/${depositID}`;
-            res.redirect(redirectUrl);
+
         })
     });
     
@@ -1007,9 +1018,11 @@ app.get('/editWithdrawal/:withdrawalID', (req, res)=> {
   })
 });
 
-app.post('/editWithdrawal/:withdrawalID', (req, res)=> {
+app.post('/editWithdrawal/:withdrawalID/:depositID', (req, res)=> {
       //grab the vairables the deposit would like to edit the data row to be
+      if (!req.session.isLoggedIn) return res.redirect('/login');
       const { date, cost, category, subcategory, location, notes } = req.body;
+      const depositID = req.params.depositID;
       // another paramter in case some how the form gets submitted without the fields filled
       if ( !date || !cost || !category || !subcategory ) {
           return knex("withdrawals")
@@ -1082,8 +1095,26 @@ app.post('/editWithdrawal/:withdrawalID', (req, res)=> {
               .first()
               .then((withdrawal) => {
                 if (!withdrawal) res.status(404).send('Withdrawal not found');
-                res.redirect(`/displayWithdrawl/${withdrawal.depositID}`);
 
+                // update endBalance on deposit
+                knex('deposits')
+                .where('depositID', depositID)
+                .first()
+                .then((originalDeposit) => {
+                  knex('withdrawals')
+                  .sum({ totalCosts: 'cost' }) 
+                  .where('depositID', depositID)
+                  .first()
+                  .then((totalCosts) => {
+                    knex('deposits')
+                    .where('depositID', depositID)
+                    .update({ endBalance: Number(originalDeposit.startBalance + originalDeposit.depositAmount - totalCosts.totalCosts) })
+                    .then((done) => {
+                      const redirectUrl = `/displayWithdrawl/${depositID}`;
+                      res.redirect(redirectUrl);
+                    })
+                  })
+                })
               })
               
           })
@@ -1156,7 +1187,25 @@ app.post('/deleteWithdrawal/:withdrawalID', (req, res) => {
         .del()
         .then((rowsDeleted) => {
           if (rowsDeleted === 0) return res.status(404).send('Withdrawal not found');
-          return res.redirect(`/displayWithdrawl/${depositID}`);
+
+          knex('deposits')
+            .where('depositID', depositID)
+            .first()
+            .then((originalDeposit) => {
+              knex('withdrawals')
+              .sum({ totalCosts: 'cost' }) 
+              .where('depositID', depositID)
+              .first()
+              .then((totalCosts) => {
+                knex('deposits')
+                .where('depositID', depositID)
+                .update({ endBalance: Number(originalDeposit.startBalance + originalDeposit.depositAmount - totalCosts.totalCosts) })
+                .then((done) => {
+                  const redirectUrl = `/displayWithdrawl/${depositID}`;
+                  res.redirect(redirectUrl);
+                })
+              })
+            })
         });
     })
     .catch((err) => {
@@ -1368,27 +1417,10 @@ app.post('/importCSV', upload.single('csvfile'), async (req, res) => {
 app.post('/startManually', (req, res) => {
   if (!req.session.isLoggedIn) return res.redirect('/login');
 
-  const accountID = req.session.accountID;
-  const initialBalanceRaw = req.body.initialBalance;
-
-  const initialBalance = Number(initialBalanceRaw);
-
-  if (Number.isNaN(initialBalance) || initialBalance < 0) {
-    return res.render('welcome', {
-      loggedIn: true,
-      error: 'Initial balance must be a valid number (0 or greater).'
-    });
-  }
-
-  knex('accounts')
-    .where('accountID', accountID)
-    .update({ initialBalance })
-    .then(() => {
-      res.redirect('/displayDeposits');
-    })
+    res.redirect('/displayDeposits')
     .catch(err => {
       console.error(err);
-      res.status(500).send('Database error updating initial balance');
+      res.status(500).send('Error loading deposits');
     });
 });
 

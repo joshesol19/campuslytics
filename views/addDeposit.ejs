@@ -13,9 +13,7 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    .navbar-brand {
-      font-weight: 600;
-    }
+    .navbar-brand { font-weight: 600; }
 
     .card {
       border-radius: 14px;
@@ -23,9 +21,7 @@
       border: none;
     }
 
-    .btn-sm {
-      padding-inline: 0.6rem;
-    }
+    .btn-sm { padding-inline: 0.6rem; }
 
     .btn-primary {
       background-color: #FF4E00;
@@ -64,19 +60,18 @@
   <div class="container mt-5">
     <div class="col-12 col-md-7 col-lg-6 mx-auto">
       <div class="card form-card p-4">
-        
+
         <h2 class="mb-3 text-center">Add Deposit</h2>
         <p class="text-muted text-center mb-4">
           Enter the details for this deposit and starting balance for the period.
         </p>
 
-        <% if (error_message) { %>
+        <% if (typeof error_message !== 'undefined' && error_message) { %>
           <div class="alert alert-danger">
             <%= error_message %>
           </div>
         <% } %>
 
-        <!-- Adjust action to match your route: /addDeposit or /addDeposits -->
         <form action="/addDeposit" method="post" class="row g-3">
 
           <div class="col-md-6">
@@ -104,7 +99,7 @@
           </div>
 
           <div class="col-md-6">
-            <label for="hoursWorked" class="form-label">Hours Worked</label>
+            <label for="hoursWorked" class="form-label">Hours Worked (optional)</label>
             <input
               type="number"
               class="form-control"
@@ -112,8 +107,61 @@
               name="hoursWorked"
               step="0.01"
               min="0"
-              required
             >
+          </div>
+
+          <div class="col-md-6">
+            <label for="startBalance" class="form-label">Start Balance</label>
+            <input
+              type="number"
+              class="form-control"
+              id="startBalance"
+              name="startBalance"
+              step="0.01"
+              min="0"
+            >
+            <div class="form-text">Or check “Use previous end balance”.</div>
+
+            <!-- Server should trust these: -->
+            <input type="hidden" id="startBalanceMode" name="startBalanceMode" value="manual">
+            <input type="hidden" id="startBalanceValue" name="startBalanceValue" value="">
+
+            <!-- checkbox stays under Start Balance -->
+            <div class="form-check mt-2">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                id="usePreviousEndBalance"
+                name="usePreviousEndBalance"
+              />
+              <label class="form-check-label small text-muted" for="usePreviousEndBalance">
+                Use previous end balance
+              </label>
+            </div>
+
+            <!-- dropdown stays under Start Balance -->
+            <div class="mt-2 d-none" id="previousDepositContainer">
+              <label for="previousDepositId" class="form-label">Choose previous deposit</label>
+              <select class="form-select" id="previousDepositId" name="previousDepositId">
+                <option value="">Select a deposit…</option>
+
+                <% if (Array.isArray(deposits)) { %>
+                  <% deposits.forEach(d => { %>
+                    <option
+                      value="<%= d.depositID %>"
+                      data-end-balance="<%= d.endBalance %>"
+                    >
+                      <%= new Date(d.depositDate).toLocaleDateString('en-US') %>
+                      — $<%= Number(d.endBalance).toFixed(2) %>
+                    </option>
+                  <% }) %>
+                <% } %>
+              </select>
+
+              <div class="form-text">
+                We’ll use that deposit’s ending balance as this period’s start balance.
+              </div>
+            </div>
           </div>
 
           <div class="col-md-12">
@@ -136,6 +184,101 @@
       </div>
     </div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const checkbox = document.getElementById('usePreviousEndBalance');
+      const startBalanceInput = document.getElementById('startBalance');
+      const modeInput = document.getElementById('startBalanceMode');
+      const startBalanceValue = document.getElementById('startBalanceValue');
+
+      const previousContainer = document.getElementById('previousDepositContainer');
+      const previousSelect = document.getElementById('previousDepositId');
+
+      if (!checkbox || !startBalanceInput || !modeInput || !previousContainer || !previousSelect || !startBalanceValue) {
+        console.log('Missing elements:', {
+          checkbox, startBalanceInput, modeInput, previousContainer, previousSelect, startBalanceValue
+        });
+        return;
+      }
+
+      function applySelectedEndBalance() {
+        const opt = previousSelect.options[previousSelect.selectedIndex];
+        const raw = opt ? opt.getAttribute('data-end-balance') : '';
+
+        if (!raw) {
+          startBalanceValue.value = '';
+          startBalanceInput.value = '';
+          return;
+        }
+
+        const n = Number(raw);
+        if (!Number.isFinite(n)) {
+          startBalanceValue.value = '';
+          startBalanceInput.value = '';
+          return;
+        }
+
+        const formatted = n.toFixed(2);
+        startBalanceValue.value = formatted;  // what the server should use
+        startBalanceInput.value = formatted;  // display to user (even though disabled)
+      }
+
+      function setUsePrevious(isChecked) {
+        if (isChecked) {
+          // disable + grey out start balance input
+          startBalanceInput.disabled = true;
+          startBalanceInput.classList.add('bg-light');
+          startBalanceInput.value = '';
+
+          // show dropdown + require it
+          previousContainer.classList.remove('d-none');
+          previousSelect.required = true;
+
+          // tell server to treat as default
+          modeInput.value = 'default';
+
+          applySelectedEndBalance();
+        } else {
+          // enable start balance
+          startBalanceInput.disabled = false;
+          startBalanceInput.classList.remove('bg-light');
+
+          // hide dropdown + un-require it
+          previousContainer.classList.add('d-none');
+          previousSelect.required = false;
+          previousSelect.value = '';
+
+          // tell server it's manual
+          modeInput.value = 'manual';
+
+          // hidden value should reflect what user typed
+          startBalanceValue.value = startBalanceInput.value;
+        }
+      }
+
+      // keep hidden value synced for manual entry
+      startBalanceInput.addEventListener('input', () => {
+        if (modeInput.value === 'manual') {
+          startBalanceValue.value = startBalanceInput.value;
+        }
+      });
+
+      // update start balance when dropdown changes
+      previousSelect.addEventListener('change', () => {
+        if (modeInput.value === 'default') {
+          applySelectedEndBalance();
+        }
+      });
+
+      // initialize state (handles refresh/back button)
+      setUsePrevious(checkbox.checked);
+
+      checkbox.addEventListener('change', () => {
+        setUsePrevious(checkbox.checked);
+      });
+    });
+  </script>
 
 </body>
 </html>

@@ -158,12 +158,12 @@
               
                     <!-- Start Balance -->
                     <td>
-                      $<%= (deposits[iCount].startBalance + deposits[iCount].depositAmount ?? 0).toFixed(2) %>
+                      $<%= (Number(deposits[iCount].startBalance) + Number(deposits[iCount].depositAmount)).toFixed(2) %>
                     </td>
               
                     <!-- End Balance -->
                     <td>
-                      $<%= (deposits[iCount].endBalance ?? 0).toFixed(2) %>
+                      $<%= (Number(deposits[iCount].endBalance)).toFixed(2) %>
                     </td>
               
                     <td><%= deposits[iCount].notes %></td>
