@@ -295,10 +295,6 @@ req.session.destroy((err) => {
 });
 });
 
-// just tells the console the server is running
-app.listen(port, () => {
-  console.log("The server is listening");
-});
 
 
 
@@ -1471,4 +1467,4 @@ app.get('/comingSoon', (req, res) => {
 
 
 // LAST LINE OF THE WHOLE FILE:
-app.listen(APP_PORT, () => console.log(`Listening on ${APP_PORT}`));
+app.listen(APP_PORT, () => console.log('Server is Listening'));
