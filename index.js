@@ -47,8 +47,55 @@ const upload = multer({ storage });
 // Expose everything in /images (including uploads) as static assets
 app.use("/images", express.static(imageRoot));
 
-// process.env.PORT is when you deploy and 3000 is for test
-const port = process.env.PORT || 3000;
+// ... all your setup above ...
+
+app.use("/images", express.static(imageRoot));
+
+// Required DB env vars (keep this ONCE)
+['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'].forEach(k => {
+  if (!process.env[k]) throw new Error(`Missing required env var: ${k}`);
+});
+
+// Ports
+const APP_PORT = process.env.PORT?.trim()
+  ? Number(process.env.PORT.trim())
+  : 3000;
+
+const DB_PORT = process.env.DB_PORT?.trim()
+  ? Number(process.env.DB_PORT.trim())
+  : 5432;
+
+if (!Number.isFinite(APP_PORT)) {
+  throw new Error(`PORT must be a number. Got "${process.env.PORT}"`);
+}
+if (!Number.isFinite(DB_PORT)) {
+  throw new Error(`DB_PORT must be a number. Got "${process.env.DB_PORT}"`);
+}
+
+const isProd = process.env.NODE_ENV === 'production';
+
+const knex = require('knex')({
+  client: 'pg',
+  connection: {
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: DB_PORT,
+    ssl: isProd ? { rejectUnauthorized: false } : false,
+  },
+});
+
+// Middleware (these should be BEFORE routes)
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'fallback-secret-key',
+  resave: false,
+  saveUninitialized: false,
+}));
+
+app.use(express.urlencoded({ extended: true }));
+
+
 
 // sets up session vairables
 app.use(
@@ -66,31 +113,6 @@ const required = ['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'];
 for (const k of required) {
   if (!process.env[k]) throw new Error(`Missing required env var: ${k}`);
 }
-
-const isProd = process.env.NODE_ENV === 'production';
-
-if (!Number.isFinite(port)) throw new Error('DB_PORT must be a number');
-
-console.log('DB config loaded', {
-  NODE_ENV: process.env.NODE_ENV,
-  DB_HOST: process.env.DB_HOST,
-  DB_PORT: port,
-  DB_USER: process.env.DB_USER,
-  DB_NAME: process.env.DB_NAME,
-  SSL: isProd
-});
-
-const knex = require('knex')({
-  client: 'pg',
-  connection: {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port,
-    ssl: isProd ? { rejectUnauthorized: false } : false,
-  },
-});
 
 
 // Tells Express how to read form data sent in the body of a request
@@ -1446,3 +1468,7 @@ app.get('/comingSoon', (req, res) => {
     loggedIn: req.session.isLoggedIn
   });
 });
+
+
+// LAST LINE OF THE WHOLE FILE:
+app.listen(APP_PORT, () => console.log(`Listening on ${APP_PORT}`));
