@@ -62,7 +62,23 @@ app.use(
 );
 
 // sets up sql use
+const required = ['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'];
+for (const k of required) {
+  if (!process.env[k]) throw new Error(`Missing required env var: ${k}`);
+}
+
 const isProd = process.env.NODE_ENV === 'production';
+
+if (!Number.isFinite(port)) throw new Error('DB_PORT must be a number');
+
+console.log('DB config loaded', {
+  NODE_ENV: process.env.NODE_ENV,
+  DB_HOST: process.env.DB_HOST,
+  DB_PORT: port,
+  DB_USER: process.env.DB_USER,
+  DB_NAME: process.env.DB_NAME,
+  SSL: isProd
+});
 
 const knex = require('knex')({
   client: 'pg',
@@ -71,10 +87,11 @@ const knex = require('knex')({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: Number(process.env.DB_PORT) || 5432,
+    port,
     ssl: isProd ? { rejectUnauthorized: false } : false,
   },
 });
+
 
 // Tells Express how to read form data sent in the body of a request
 app.use(express.urlencoded({extended: true}));
