@@ -49,3 +49,6 @@ logs/
 # --------------------
 .vscode/
 .idea/
+
+# Archives
+*.zip
