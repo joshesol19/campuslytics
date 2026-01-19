@@ -1,0 +1,6 @@
+node_modules
+.env
+.venv
+.git
+.idea
+*.zip
