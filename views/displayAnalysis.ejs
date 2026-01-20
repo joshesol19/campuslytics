@@ -92,6 +92,45 @@
          width: 50%;
        }
      }
+
+     /* Keep AI-generated content from breaking mobile layout */
+      #aiBox {
+        overflow-wrap: anywhere;
+      }
+
+      /* Make any AI tables scroll horizontally on small screens */
+      #aiBox .table-wrap,
+      #aiBox .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Make tables behave nicely inside that wrapper */
+      #aiBox table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;       /* smaller on mobile */
+      }
+
+      /* Reduce padding so columns fit better */
+      #aiBox th,
+      #aiBox td {
+        padding: 0.4rem;
+        vertical-align: top;
+      }
+
+      /* Let Category wrap; keep numbers readable */
+      #aiBox td:first-child,
+      #aiBox th:first-child {
+        white-space: normal;
+      }
+
+      #aiBox td:not(:first-child),
+      #aiBox th:not(:first-child) {
+        white-space: nowrap;
+      }
+
    </style>
  </head>
  <body>

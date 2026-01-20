@@ -511,6 +511,7 @@ app.get('/displayDeposits', (req, res, next) => {
         return knex('withdrawals')
           .where('depositID', depositID)
           .sum({ totalCosts: 'cost' })
+          .where('depositID', depositID)
           .first()
           .then(totals => {
             const totalCosts = Number(totals.totalCosts) || 0;
@@ -893,10 +894,9 @@ app.post('/addWithdrawal/:depositID', (req, res)=>{
 
             // update endBalance on deposit
             knex('deposits')
-            .select('endBalance')
             .where('depositID', depositID)
             .first()
-            .then((originalEndBalance) => {
+            .then((originalDeposit) => {
               knex('withdrawals')
               .sum({ totalCosts: 'cost' }) 
               .where('depositID', depositID)
@@ -904,7 +904,7 @@ app.post('/addWithdrawal/:depositID', (req, res)=>{
               .then((totalCosts) => {
                 knex('deposits')
                 .where('depositID', depositID)
-                .update({ endBalance: Number(originalEndBalance.endBalance - totalCosts.totalCosts) })
+                .update({ endBalance: Number(originalDeposit.startBalance + originalDeposit.depositAmount - totalCosts.totalCosts) })
                 .then((done) => {
                   const redirectUrl = `/displayWithdrawl/${depositID}`;
                   res.redirect(redirectUrl);
@@ -915,17 +915,6 @@ app.post('/addWithdrawal/:depositID', (req, res)=>{
 
         })
     });
-    
-        //     //catch error
-        // .catch((dbErr) => {
-        //     console
-        //     console.error("Error inserting withdrawal:", dbErr.message);
-        //     // Database error, so show the form again with a generic message.
-        //     res.status(500).render("addWithdrawal",
-        //         { loggedIn: req.session.isLoggedIn, error_message: "Unable to save. Please try again.",
-        //             level:req.session.level
-        //          });
-        // });
     }
 );
 
@@ -1273,23 +1262,6 @@ app.get('/displayAnalysis/:depositID', (req, res) => {
             .select('depositID')
             .sum({ totalCost: 'cost' })
             .then((withdrawalSummary) => {
-              const withdrawalMap = {};
-              withdrawalSummary.forEach((w) => {
-                withdrawalMap[w.depositID] = Number(w.totalCost);
-              });
-
-              const initialBalance = Number(account.initialBalance || 0);
-              let runningBalance = initialBalance;
-
-              deposits.forEach((d) => {
-                const depositAmount = Number(d.depositAmount || 0);
-                const totalWithdrawals = withdrawalMap[d.depositID] || 0;
-
-                d.startBalance = runningBalance;
-                d.endBalance = runningBalance + depositAmount - totalWithdrawals;
-
-                runningBalance = d.endBalance;
-              });
 
               const thisDeposit = deposits.find((d) => Number(d.depositID) === depositID);
               if (!thisDeposit) return res.redirect('/displayDeposits');

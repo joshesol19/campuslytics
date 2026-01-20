@@ -30,14 +30,11 @@ client = OpenAI(
 )
 
 
-# client = genai.Client(api_key=API_KEY)
-
 # 3. grab args
 deposit_id = int(sys.argv[1])  # from Node
 mode = sys.argv[3] if len(sys.argv) > 3 else "ai"
 UserAccountID = int(sys.argv[2])
 
-# deposit_id = 8
 
 # 4. Build connection string for Postgres with psycopg2
 engine = create_engine(
@@ -116,31 +113,74 @@ if mode == "fast":
     # Sort values highest → lowest
     dfWith = dfWith.sort_values(by='cost', ascending=False)
     plt.figure(figsize=(12, 6))
-    sns.barplot(x='category', y='cost', data=dfWith, color='orange', errorbar=None)
+
+    ax = sns.barplot(
+        x='category',
+        y='cost',
+        data=dfWith,
+        color='orange',
+        errorbar=None
+    )
+
+    # add data labels on top of each bar
+    for bar in ax.patches:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height,
+            f"${height:,.2f}",
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+
     plt.title('Dollars Spent by Category (This Period)')
     plt.xlabel("Category")
     plt.ylabel("Dollars Spent ($)")
-    # Make labels readable
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
+
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.clf()
+
 
 
     # allCategoriesCosts graph
-    # Sort values highest → lowest
+    # Sort values highest to lowest
     df_averages = df_averages.sort_values(by='avg', ascending=False)
     # Make the plot
-    plt.figure(figsize=(12, 6))  # wider figure helps with long labels
-    sns.barplot(x='category', y='avg', data=df_averages[df_averages["baseline_eligible"]], color='orange', errorbar=None)
+    plt.figure(figsize=(12, 6)) 
+
+    ax = sns.barplot(
+        x='category',
+        y='avg',
+        data=df_averages[df_averages["baseline_eligible"]],
+        color='orange',
+        errorbar=None
+    )
+
+    # add data labels on top of each bar
+    for bar in ax.patches:
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            height,
+            f"${height:,.2f}",
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+
     plt.title('Average Dollars Spent by Category (Overall)')
     plt.xlabel("Category")
     plt.ylabel("Dollars Spent ($)")
-    plt.xticks(rotation=45, ha='right')  # angled readable labels
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
+
     output_path = os.path.join(output_dir, f"allCategoriesCostsAccount{UserAccountID}.png")
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.clf()
+
 
     result = {
         "row_count": int(len(dfWith)),
@@ -198,6 +238,18 @@ prompt = f"""
       - Table with columns: Category, Total Spent, % of Total, Transactions, Avg per Transaction
       - Don't show Tithing (if applicable)
       - Sort by Transactions desc. Show up to 7 categories.
+      - Output a table wrapped EXACTLY like this so it works on mobile:
+
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          ...
+        </table>
+      </div>
+
+      - Table columns must be exactly: Category, Total Spent, % of Total, Transactions, Avg per Transaction
+      - Sort by Transactions desc. Show up to 7 categories.
+      - IMPORTANT: Use short header labels to reduce width:
+        Category | Total | % | Tx | Avg/Tx
       - Add <br> tag at the end
     
       <h3>3) Biggest Drivers</h3>
