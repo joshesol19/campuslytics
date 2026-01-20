@@ -97,12 +97,19 @@ const knex = require('knex')({
 
 
 
+app.set('trust proxy', 1);
+
 // middleware (these should be before routes)
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'fallback-secret-key',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+  },
 }));
+
 
 app.use(express.urlencoded({ extended: true }));
 
