@@ -28,9 +28,27 @@ The app allows users to track deposits and withdrawals by pay period, view runni
 
 ---
 
+## Database Setup
+
+1. Create a PostgreSQL database
+2. Run the schema file:
+
+```bash
+psql -d campuslytics -f db/schema.sql
+```
+
+(Optional) Seed sample data:
+
+```bash
+psql -d campuslytics -f db/seed.sql
+```
+
+---
+
 ## Getting Started (Local Setup)
 
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/YOUR_USERNAME/campuslytics.git
 cd campuslytics
+
