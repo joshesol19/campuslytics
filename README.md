@@ -24,7 +24,7 @@ The app allows users to track deposits and withdrawals by pay period, view runni
 - Pay-period level balance calculations
 - On-demand financial analysis via Python
 - Graph generation for spending insights
-- Optional AI-generated recommendations
+- Optional AI-generated recommendations (to implement, explore )
 
 ---
 
@@ -43,6 +43,24 @@ psql -d campuslytics -f db/schema.sql
 psql -d campuslytics -f db/seed.sql
 ```
 
+---
+
+## One important thing you should do next
+
+Also add an **`.env`** file.
+Name it **`.env`** and put your values in:
+
+```env
+SESSION_SECRET=
+PORT=3000
+DB_HOST=
+DB_PORT=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+GROQ_API_KEY=
+```
+note: More info on how to obtain a GROQ_API_KEY can be found at https://console.groq.com/keys.
 ---
 
 ## Getting Started (Local Setup)
