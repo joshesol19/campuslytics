@@ -142,4 +142,3 @@ It is not a financial product and does not provide financial advice.
 
 Joshua Solano
 
-````
