@@ -12,25 +12,41 @@ The app allows users to track deposits and withdrawals by pay period, view runni
 - **Frontend:** EJS templates
 - **Database:** PostgreSQL (via Knex)
 - **Analysis:** Python (charts + optional AI recommendations)
-- **Auth:** Session-based authentication
-- **Deployment-ready:** Docker compatible
+- **Authentication:** Session-based authentication
+- **Deployment:** Docker-compatible
 
 ---
 
 ## Features
 
 - User authentication (session-based)
-- Deposit & withdrawal tracking
+- Deposit and withdrawal tracking
 - Pay-period level balance calculations
 - On-demand financial analysis via Python
 - Graph generation for spending insights
-- Optional AI-generated recommendations (to implement, explore )
+- Optional AI-generated recommendations
+
+---
+
+## Getting Started (Local Setup)
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/YOUR_USERNAME/campuslytics.git
+cd campuslytics
+````
+
+### 2. Install Node dependencies
+
+```bash
+npm install
+```
 
 ---
 
 ## Database Setup
 
-1. Create a PostgreSQL database
+1. Create a PostgreSQL database locally.
 2. Run the schema file:
 
 ```bash
@@ -45,29 +61,85 @@ psql -d campuslytics -f db/seed.sql
 
 ---
 
-## One important thing you should do next
+## Environment Variables
 
-Also add an **`.env`** file.
-Name it **`.env`** and put your values in:
+Create a `.env` file in the project root with the following variables:
 
 ```env
 PORT=3000
+SESSION_SECRET=your_session_secret
+
 DB_HOST=
 DB_PORT=
 DB_USER=
 DB_PASSWORD=
 DB_NAME=
+
 GROQ_API_KEY=
-psql -d campuslytics -f db/schema.sql
 ```
-Note: More info on how to obtain a GROQ_API_KEY can be found at https://console.groq.com/keys.
+
+### Notes
+
+* **`.env` is required** to run the app locally.
+* Do **not** commit `.env` to GitHub.
+* `GROQ_API_KEY` is only required if using AI analysis routes.
+
+More information on obtaining a GROQ API key:
+[https://console.groq.com/keys](https://console.groq.com/keys)
 
 ---
 
-## Getting Started (Local Setup)
+## Python Analysis
 
-### 1. Clone the repository
+Python scripts are executed **only when a user explicitly requests analysis** from the UI.
+
+The Node server spawns Python processes at runtime to:
+
+* generate spending graphs
+* compute analytical summaries
+* optionally return AI-generated recommendations
+
+Make sure:
+
+* `python3` is available on your system
+* required Python packages are installed
+
+Python dependencies are listed in `requirements.txt`.
+
+---
+
+## Running the Application
+
 ```bash
-git clone https://github.com/YOUR_USERNAME/campuslytics.git
-cd campuslytics
+npm start
+```
 
+Then visit:
+
+```
+http://localhost:3000
+```
+
+---
+
+## Deployment Notes
+
+* Designed to run on platforms such as **Render** with **Neon PostgreSQL**
+* Supports Docker-based deployment
+* Environment variables must be configured on the hosting platform
+* Free hosting platforms may introduce cold-start delays
+
+---
+
+## Disclaimer
+
+CampusLytics is an educational and portfolio project.
+It is not a financial product and does not provide financial advice.
+
+---
+
+## Author
+
+Joshua Solano
+
+````
