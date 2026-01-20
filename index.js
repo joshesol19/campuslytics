@@ -47,9 +47,6 @@ const upload = multer({ storage });
 // Expose everything in /images (including uploads) as static assets
 app.use("/images", express.static(imageRoot));
 
-// ... all your setup above ...
-
-app.use("/images", express.static(imageRoot));
 
 // Required DB env vars (keep this ONCE)
 ['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'].forEach(k => {
