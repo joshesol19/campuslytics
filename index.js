@@ -49,9 +49,11 @@ app.use("/images", express.static(imageRoot));
 
 
 // Required DB env vars (keep this ONCE)
-['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'].forEach(k => {
-  if (!process.env[k]) throw new Error(`Missing required env var: ${k}`);
-});
+if (!process.env.DATABASE_URL) {
+  ['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'].forEach(k => {
+    if (!process.env[k]) throw new Error(`Missing required env var: ${k}`);
+  });
+}
 
 // Ports
 const APP_PORT = process.env.PORT?.trim()
@@ -71,19 +73,31 @@ if (!Number.isFinite(DB_PORT)) {
 
 const isProd = process.env.NODE_ENV === 'production';
 
+const knexConfig = process.env.DATABASE_URL
+  ? {
+      connection: {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+      },
+    }
+  : {
+      connection: {
+        host: process.env.DB_HOST,
+        port: DB_PORT || 5432,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+      },
+    };
+
 const knex = require('knex')({
   client: 'pg',
-  connection: {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: DB_PORT,
-    ssl: isProd ? { rejectUnauthorized: false } : false,
-  },
+  ...knexConfig,
 });
 
-// Middleware (these should be BEFORE routes)
+
+
+// middleware (these should be before routes)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'fallback-secret-key',
   resave: false,
@@ -94,26 +108,6 @@ app.use(express.urlencoded({ extended: true }));
 
 
 
-// sets up session vairables
-app.use(
-    session(
-        {
-    secret: process.env.SESSION_SECRET || 'fallback-secret-key',
-    resave: false,
-    saveUninitialized: false,
-        }
-    )
-);
-
-// sets up sql use
-const required = ['DB_HOST','DB_USER','DB_PASSWORD','DB_NAME'];
-for (const k of required) {
-  if (!process.env[k]) throw new Error(`Missing required env var: ${k}`);
-}
-
-
-// Tells Express how to read form data sent in the body of a request
-app.use(express.urlencoded({extended: true}));
 
 const { spawn } = require('child_process');
 
