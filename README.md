@@ -51,7 +51,6 @@ Also add an **`.env`** file.
 Name it **`.env`** and put your values in:
 
 ```env
-SESSION_SECRET=
 PORT=3000
 DB_HOST=
 DB_PORT=
@@ -59,8 +58,10 @@ DB_USER=
 DB_PASSWORD=
 DB_NAME=
 GROQ_API_KEY=
+psql -d campuslytics -f db/schema.sql
 ```
-note: More info on how to obtain a GROQ_API_KEY can be found at https://console.groq.com/keys.
+Note: More info on how to obtain a GROQ_API_KEY can be found at https://console.groq.com/keys.
+
 ---
 
 ## Getting Started (Local Setup)
