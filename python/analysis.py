@@ -21,7 +21,6 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")  # no fallback; fail loudly if missing
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "financeProject")
-API_KEY = os.getenv('API_KEY')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
 client = OpenAI(
