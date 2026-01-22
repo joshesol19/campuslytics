@@ -5,6 +5,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import pandas as pd
 from sqlalchemy import create_engine
+from urllib.parse import urlparse
 
 import matplotlib.pyplot as plt
 import seaborn as sns
