@@ -1278,12 +1278,14 @@ app.get('/displayAnalysis/:depositID', (req, res) => {
                       // FAST python run: graphs + payload, no AI
                       let UserAccountID = req.session.accountID
 
-                      const py = spawn(PYTHON, [
-                        scriptPath,
-                        String(thisDeposit.depositID),
-                        String(UserAccountID),
-                        'fast'
-                      ]);
+                      const py = spawn(
+                          PYTHON,
+                          [scriptPath, String(depositID), String(accountID), 'fast'],
+                          {
+                            env: { ...process.env },     // <-- critical
+                            stdio: ['ignore', 'pipe', 'pipe'],
+                          }
+                        );
 
 
                       let pyOutput = '';
@@ -1350,13 +1352,14 @@ app.get('/analysisAI/:depositID', (req, res) => {
     .then((dep) => {
       if (!dep) return res.status(404).json({ error: 'Deposit not found' });
 
-      const py = spawn(PYTHON, [
-        scriptPath,
-        String(depositID),
-        String(accountID),
-        'ai'
-      ]);
-
+      const py = spawn(
+          PYTHON,
+          [scriptPath, String(depositID), String(accountID), 'ai'],
+          {
+            env: { ...process.env },     // <-- critical
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }
+        );
       let pyOutput = '';
       let pyErr = '';
 
