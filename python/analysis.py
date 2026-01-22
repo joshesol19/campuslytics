@@ -16,6 +16,7 @@ import sys
 # 1. Load .env from current/parent dirs
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # 2. Read environment variables
 
