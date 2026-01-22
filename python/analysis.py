@@ -1,50 +1,51 @@
 import os
 import json
-from openai import OpenAI
+import sys
+from urllib.parse import urlparse
 
-from dotenv import load_dotenv
 import pandas as pd
 from sqlalchemy import create_engine
-from urllib.parse import urlparse
+from dotenv import load_dotenv
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-import sys
 
-# from google import genai
+from openai import OpenAI
 
-# 1. Load .env from current/parent dirs
+
 load_dotenv()
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT")
-DB_NAME = os.getenv("DB_NAME")
 
-# 2. Read environment variables
+print("[analysis] DATABASE_URL exists?", bool(DATABASE_URL), flush=True)
+print("[analysis] DB_HOST =", os.getenv("DB_HOST"), flush=True)
+print("[analysis] RENDER_SERVICE_ID =", os.getenv("RENDER_SERVICE_ID"), flush=True)
+
+# If we're on Render, DATABASE_URL MUST exist.
+if os.getenv("RENDER_SERVICE_ID") and not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is missing in Render env vars for this service.")
 
 if DATABASE_URL:
     u = urlparse(DATABASE_URL)
     print(f"[analysis] using DATABASE_URL host={u.hostname} db={u.path}", flush=True)
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 else:
-    # If you're on Render, you should NOT be here.
-    if os.getenv("RENDER") == "true":
-        raise RuntimeError("DATABASE_URL missing in Render environment")
-
+    # Local/dev fallback only
     DB_USER = os.getenv("DB_USER", "joshuasolano")
     DB_PASSWORD = os.getenv("DB_PASSWORD")
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_NAME = os.getenv("DB_NAME", "financeProject")
 
+    if not DB_PASSWORD:
+        raise RuntimeError("DB_PASSWORD missing for local/dev connection")
+
     print(f"[analysis] using parts host={DB_HOST} db={DB_NAME}", flush=True)
 
     engine = create_engine(
         f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
-        pool_pre_ping=True
+        pool_pre_ping=True,
     )
 
 client = OpenAI(
