@@ -18,20 +18,20 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-print("[analysis] DATABASE_URL exists?", bool(DATABASE_URL), flush=True)
-print("[analysis] DB_HOST =", os.getenv("DB_HOST"), flush=True)
+print("[analysis] DATABASE_URL =", DATABASE_URL, flush=True)
 print("[analysis] RENDER_SERVICE_ID =", os.getenv("RENDER_SERVICE_ID"), flush=True)
 
-# If we're on Render, DATABASE_URL MUST exist.
-if os.getenv("RENDER_SERVICE_ID") and not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL is missing in Render env vars for this service.")
+def make_engine():
+    if DATABASE_URL:
+        u = urlparse(DATABASE_URL)
+        print(f"[analysis] using DATABASE_URL host={u.hostname} db={u.path}", flush=True)
+        return create_engine(DATABASE_URL, pool_pre_ping=True)
 
-if DATABASE_URL:
-    u = urlparse(DATABASE_URL)
-    print(f"[analysis] using DATABASE_URL host={u.hostname} db={u.path}", flush=True)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-else:
-    # Local/dev fallback only
+    # If this is Render, DO NOT allow fallback
+    if os.getenv("RENDER_SERVICE_ID"):
+        raise RuntimeError("DATABASE_URL missing in Render service environment")
+
+    # Local dev only
     DB_USER = os.getenv("DB_USER", "joshuasolano")
     DB_PASSWORD = os.getenv("DB_PASSWORD")
     DB_HOST = os.getenv("DB_HOST", "localhost")
@@ -39,14 +39,17 @@ else:
     DB_NAME = os.getenv("DB_NAME", "financeProject")
 
     if not DB_PASSWORD:
-        raise RuntimeError("DB_PASSWORD missing for local/dev connection")
+        raise RuntimeError("DB_PASSWORD missing for local connection")
 
-    print(f"[analysis] using parts host={DB_HOST} db={DB_NAME}", flush=True)
+    print(f"[analysis] using local db host={DB_HOST} db={DB_NAME}", flush=True)
 
-    engine = create_engine(
+    return create_engine(
         f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
         pool_pre_ping=True,
     )
+
+engine = make_engine()
+
 
 client = OpenAI(
     api_key=GROQ_API_KEY,
