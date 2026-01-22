@@ -16,12 +16,14 @@ import sys
 load_dotenv()
 
 # 2. Read environment variables
-DB_USER = os.getenv("DB_USER", "joshuasolano")
-DB_PASSWORD = os.getenv("DB_PASSWORD")  # no fallback; fail loudly if missing
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "financeProject")
-GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+if DATABASE_URL:
+    engine = create_engine(DATABASE_URL)
+else:
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_NAME = os.getenv("DB_NAME", "financeProject")
 
 client = OpenAI(
     api_key=GROQ_API_KEY,
