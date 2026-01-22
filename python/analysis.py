@@ -14,16 +14,31 @@ import sys
 
 # 1. Load .env from current/parent dirs
 load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # 2. Read environment variables
+
 if DATABASE_URL:
-    engine = create_engine(DATABASE_URL)
+    u = urlparse(DATABASE_URL)
+    print(f"[analysis] using DATABASE_URL host={u.hostname} db={u.path}", flush=True)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 else:
-    DB_USER = os.getenv("DB_USER")
+    # If you're on Render, you should NOT be here.
+    if os.getenv("RENDER") == "true":
+        raise RuntimeError("DATABASE_URL missing in Render environment")
+
+    DB_USER = os.getenv("DB_USER", "joshuasolano")
     DB_PASSWORD = os.getenv("DB_PASSWORD")
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_NAME = os.getenv("DB_NAME", "financeProject")
+
+    print(f"[analysis] using parts host={DB_HOST} db={DB_NAME}", flush=True)
+
+    engine = create_engine(
+        f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+        pool_pre_ping=True
+    )
 
 client = OpenAI(
     api_key=GROQ_API_KEY,
