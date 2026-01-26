@@ -18,30 +18,23 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-print("[analysis] DATABASE_URL =", DATABASE_URL, flush=True)
-print("[analysis] RENDER_SERVICE_ID =", os.getenv("RENDER_SERVICE_ID"), flush=True)
 
 def make_engine():
     if DATABASE_URL:
         u = urlparse(DATABASE_URL)
-        print(f"[analysis] using DATABASE_URL host={u.hostname} db={u.path}", flush=True)
         return create_engine(DATABASE_URL, pool_pre_ping=True)
 
-    # If this is Render, DO NOT allow fallback
-    if os.getenv("RENDER_SERVICE_ID"):
-        raise RuntimeError("DATABASE_URL missing in Render service environment")
 
-    # Local dev only
-    DB_USER = os.getenv("DB_USER", "joshuasolano")
+    # else grab a local run
+    DB_USER = os.getenv("DB_USER")
     DB_PASSWORD = os.getenv("DB_PASSWORD")
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = os.getenv("DB_PORT", "5432")
-    DB_NAME = os.getenv("DB_NAME", "financeProject")
+    DB_NAME = os.getenv("DB_NAME")
 
     if not DB_PASSWORD:
         raise RuntimeError("DB_PASSWORD missing for local connection")
 
-    print(f"[analysis] using local db host={DB_HOST} db={DB_NAME}", flush=True)
 
     return create_engine(
         f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
@@ -62,11 +55,6 @@ deposit_id = int(sys.argv[1])  # from Node
 mode = sys.argv[3] if len(sys.argv) > 3 else "ai"
 UserAccountID = int(sys.argv[2])
 
-
-# 4. Build connection string for Postgres with psycopg2
-engine = create_engine(
-    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
 
 # 5. Pull withdrawals for this deposit into a DataFrame
 queryWith = f'SELECT * FROM withdrawals WHERE "depositID" = {deposit_id};'
