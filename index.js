@@ -8,6 +8,8 @@ require('dotenv').config();
 
 
 const express = require("express");
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 //Needed for the session variable - Stored on the server to hold data
 const session = require("express-session");
@@ -111,6 +113,7 @@ app.use(session({
 }));
 
 
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 
@@ -122,6 +125,133 @@ const PYTHON = process.env.PYTHON_BIN || "python3";
 const scriptPath = path.join(__dirname, 'python', 'analysis.py');
 
 //////////////////////////////////////////////
+
+// JWT helpers
+const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
+
+function signToken(user) {
+  const payload = {
+    username: user.username,
+    accountID: user.accountID,
+    level: user.level,
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
+
+function verifyToken(req, res, next) {
+  const authHeader = req.headers['authorization'] || '';
+  const [scheme, token] = authHeader.split(' ');
+  if (scheme !== 'Bearer' || !token) {
+    return res.status(401).json({ error: 'Missing or invalid Authorization header' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    console.error('JWT verify failed', err);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+function requireManager(req, res, next) {
+  if (!req.user || req.user.level !== 'M') {
+    return res.status(403).json({ error: 'Manager access required' });
+  }
+  next();
+}
+
+// /////////////////////// - API AUTH - ///////////////////////////////
+app.post('/api/register', async (req, res) => {
+  try {
+    const { firstName, lastName, username, email, password } = req.body;
+    if (!firstName || !lastName || !username || !email || !password) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const existingUser = await knex('users').where({ username }).first();
+    if (existingUser) {
+      return res.status(409).json({ error: 'Username already in use' });
+    }
+
+    const today = new Date();
+    const dateCreated = today.toISOString().split('T')[0];
+
+    await knex.transaction(async (trx) => {
+      const [account] = await trx('accounts')
+        .insert({ firstName, lastName, dateCreated })
+        .returning(['accountID']);
+
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      await trx('users').insert({
+        username,
+        email,
+        password: passwordHash,
+        firstName,
+        lastName,
+        accountID: account.accountID,
+        level: 'M',
+        age: 'N',
+      });
+    });
+
+    const createdUser = await knex('users')
+      .where({ username })
+      .first('username', 'firstName', 'lastName', 'email', 'accountID', 'level');
+
+    const token = signToken(createdUser);
+
+    return res.json({
+      token,
+      user: {
+        username: createdUser.username,
+        firstName: createdUser.firstName,
+        lastName: createdUser.lastName,
+        level: createdUser.level,
+        accountID: createdUser.accountID,
+      },
+    });
+  } catch (err) {
+    console.error('API register error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Missing username or password' });
+    }
+
+    const user = await knex('users').where({ username }).first();
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = signToken(user);
+
+    return res.json({
+      token,
+      user: {
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        level: user.level,
+        accountID: user.accountID,
+      },
+    });
+  } catch (err) {
+    console.error('API login error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // root instantly directs to login page
 app.get("/", (req, res) => {
@@ -354,6 +484,138 @@ app.get('/displayDeposits', (req, res, next) => {
         next(err);
       });
   });
+
+// /////////////////////// - API DEPOSITS - ///////////////////////////////
+app.get('/api/deposits', verifyToken, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const deposits = await knex('deposits')
+      .where({ accountID })
+      .orderBy('depositDate', 'desc');
+    return res.json({ deposits });
+  } catch (err) {
+    console.error('GET /api/deposits error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/deposits', verifyToken, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const { depositDate, depositAmount, hoursWorked, notes, startBalance } = req.body;
+
+    if (!depositDate || depositAmount == null || startBalance == null) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const depAmt = Number(depositAmount);
+    const startBal = Number(startBalance);
+    const hrs = hoursWorked == null || hoursWorked === '' ? null : Number(hoursWorked);
+
+    if (!Number.isFinite(depAmt) || !Number.isFinite(startBal)) {
+      return res.status(400).json({ error: 'Invalid numeric values' });
+    }
+
+    const endBalance = startBal + depAmt;
+
+    const [created] = await knex('deposits')
+      .insert({
+        depositDate,
+        depositAmount: depAmt,
+        hoursWorked: hrs,
+        notes,
+        startBalance: startBal,
+        endBalance,
+        accountID,
+      })
+      .returning('*');
+
+    return res.status(201).json({ deposit: created });
+  } catch (err) {
+    console.error('POST /api/deposits error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/deposits/:depositID', verifyToken, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const { depositID } = req.params;
+    const { depositDate, depositAmount, hoursWorked, notes, startBalance } = req.body;
+
+    const existing = await knex('deposits')
+      .where({ depositID })
+      .first();
+
+    if (!existing || Number(existing.accountID) !== Number(accountID)) {
+      return res.status(404).json({ error: 'Deposit not found' });
+    }
+
+    const depAmt = Number(depositAmount);
+    const startBal = Number(startBalance);
+    const hrs = hoursWorked == null || hoursWorked === '' ? null : Number(hoursWorked);
+
+    if (!Number.isFinite(depAmt) || !Number.isFinite(startBal)) {
+      return res.status(400).json({ error: 'Invalid numeric values' });
+    }
+
+    const totals = await knex('withdrawals')
+      .where({ depositID })
+      .sum({ totalCosts: 'cost' })
+      .first();
+
+    const totalCosts = Number(totals.totalCosts) || 0;
+    const endBalance = startBal + depAmt - totalCosts;
+
+    const [updated] = await knex('deposits')
+      .where({ depositID })
+      .update(
+        {
+          depositDate,
+          depositAmount: depAmt,
+          hoursWorked: hrs,
+          notes,
+          startBalance: startBal,
+          endBalance,
+        },
+        '*'
+      );
+
+    return res.json({ deposit: updated });
+  } catch (err) {
+    console.error('PUT /api/deposits/:depositID error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/deposits/:depositID', verifyToken, async (req, res) => {
+  try {
+    const { accountID, level } = req.user;
+    const { depositID } = req.params;
+
+    if (level !== 'M') {
+      return res.status(403).json({ error: 'Manager access required' });
+    }
+
+    const deposit = await knex('deposits')
+      .where({ depositID })
+      .first();
+
+    if (!deposit || Number(deposit.accountID) !== Number(accountID)) {
+      return res.status(404).json({ error: 'Deposit not found' });
+    }
+
+    await knex.transaction(async (trx) => {
+      await trx('withdrawals').where({ depositID }).del();
+      await trx('deposits').where({ depositID }).del();
+    });
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error('DELETE /api/deposits/:depositID error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
   app.get('/addDeposit', (req, res) => {
     if (!req.session.isLoggedIn){
@@ -834,6 +1096,111 @@ app.post('/deleteUser/:username', (req, res) => {
   })
 });
 
+// /////////////////////// - API USERS - ///////////////////////////////
+app.get('/api/users', verifyToken, requireManager, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const users = await knex('users')
+      .where({ accountID })
+      .select('username', 'email', 'firstName', 'lastName', 'level', 'age');
+    return res.json({ users });
+  } catch (err) {
+    console.error('GET /api/users error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/users', verifyToken, requireManager, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const { username, firstName, lastName, email, password, level } = req.body;
+
+    if (!username || !firstName || !lastName || !email || !password) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const existing = await knex('users').where({ username }).first();
+    if (existing) {
+      return res.status(409).json({ error: 'Username already exists' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const [created] = await knex('users')
+      .insert({
+        username,
+        firstName,
+        lastName,
+        email,
+        password: passwordHash,
+        level: level === 'M' ? 'M' : 'U',
+        age: 'O',
+        accountID,
+      })
+      .returning(['username', 'email', 'firstName', 'lastName', 'level', 'age']);
+
+    return res.status(201).json({ user: created });
+  } catch (err) {
+    console.error('POST /api/users error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/users/:username', verifyToken, requireManager, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const { username } = req.params;
+    const { email, firstName, lastName, level } = req.body;
+
+    const existing = await knex('users')
+      .where({ username, accountID })
+      .first();
+    if (!existing) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const updatedFields = {
+      email: email ?? existing.email,
+      firstName: firstName ?? existing.firstName,
+      lastName: lastName ?? existing.lastName,
+      level: level === 'M' || level === 'U' ? level : existing.level,
+    };
+
+    const [updated] = await knex('users')
+      .where({ username, accountID })
+      .update(updatedFields, ['username', 'email', 'firstName', 'lastName', 'level', 'age']);
+
+    return res.json({ user: updated });
+  } catch (err) {
+    console.error('PUT /api/users/:username error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/users/:username', verifyToken, requireManager, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const { username } = req.params;
+
+    const user = await knex('users')
+      .where({ username, accountID })
+      .first();
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (user.level !== 'U') {
+      return res.status(400).json({ error: 'Only level U users can be deleted' });
+    }
+
+    await knex('users').where({ username, accountID }).del();
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error('DELETE /api/users/:username error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 // /////////////////////// - WITHDRAWALS - ///////////////////////////////
 // renders add withdrawal page
@@ -915,6 +1282,228 @@ app.post('/addWithdrawal/:depositID', (req, res)=>{
     });
     }
 );
+
+// /////////////////////// - API WITHDRAWALS - ///////////////////////////////
+app.get('/api/withdrawals/:depositID', verifyToken, async (req, res) => {
+  try {
+    const { accountID } = req.user;
+    const depositID = Number(req.params.depositID);
+
+    const deposit = await knex('deposits')
+      .where({ accountID, depositID })
+      .first();
+    if (!deposit) {
+      return res.status(404).json({ error: 'Deposit not found' });
+    }
+
+    const withdrawals = await knex('withdrawals')
+      .where({ accountID, depositID })
+      .orderBy('withdrawalDate', 'asc');
+
+    const totalCost = withdrawals.reduce((sum, w) => sum + Number(w.cost || 0), 0);
+
+    return res.json({ deposit, withdrawals, totalCost });
+  } catch (err) {
+    console.error('GET /api/withdrawals/:depositID error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/withdrawals/:depositID', verifyToken, async (req, res) => {
+  try {
+    const { accountID, level } = req.user;
+    const depositID = Number(req.params.depositID);
+
+    if (level !== 'M') {
+      return res.status(403).json({ error: 'Manager access required' });
+    }
+
+    const deposit = await knex('deposits')
+      .where({ accountID, depositID })
+      .first();
+    if (!deposit) {
+      return res.status(404).json({ error: 'Deposit not found' });
+    }
+
+    const {
+      withdrawalDate,
+      category,
+      subcategory,
+      location,
+      cost,
+      notes,
+      onlineFlag,
+    } = req.body;
+
+    if (!withdrawalDate || !category || !subcategory || cost == null) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const numericCost = Number(cost);
+    if (!Number.isFinite(numericCost)) {
+      return res.status(400).json({ error: 'Invalid cost' });
+    }
+
+    const [created] = await knex('withdrawals')
+      .insert({
+        depositID,
+        category,
+        subcategory,
+        withdrawalDate,
+        location,
+        cost: numericCost,
+        notes,
+        onlineFlag,
+        accountID,
+      })
+      .returning('*');
+
+    const totals = await knex('withdrawals')
+      .where({ depositID })
+      .sum({ totalCosts: 'cost' })
+      .first();
+    const totalCosts = Number(totals.totalCosts) || 0;
+
+    const newEndBalance =
+      Number(deposit.startBalance || 0) +
+      Number(deposit.depositAmount || 0) -
+      totalCosts;
+
+    await knex('deposits')
+      .where({ depositID })
+      .update({ endBalance: newEndBalance });
+
+    return res.status(201).json({ withdrawal: created });
+  } catch (err) {
+    console.error('POST /api/withdrawals/:depositID error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/withdrawals/:withdrawalID/:depositID', verifyToken, async (req, res) => {
+  try {
+    const { accountID, level } = req.user;
+    const { withdrawalID, depositID } = req.params;
+
+    if (level !== 'M') {
+      return res.status(403).json({ error: 'Manager access required' });
+    }
+
+    const withdrawal = await knex('withdrawals')
+      .where({ withdrawalID, accountID })
+      .first();
+    if (!withdrawal) {
+      return res.status(404).json({ error: 'Withdrawal not found' });
+    }
+
+    const {
+      withdrawalDate,
+      category,
+      subcategory,
+      location,
+      cost,
+      notes,
+      onlineFlag,
+    } = req.body;
+
+    if (!withdrawalDate || !category || !subcategory || cost == null) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const numericCost = Number(cost);
+    if (!Number.isFinite(numericCost)) {
+      return res.status(400).json({ error: 'Invalid cost' });
+    }
+
+    const [updated] = await knex('withdrawals')
+      .where({ withdrawalID })
+      .update(
+        {
+          withdrawalDate,
+          category,
+          subcategory,
+          location,
+          cost: numericCost,
+          notes,
+          onlineFlag,
+        },
+        '*'
+      );
+
+    const deposit = await knex('deposits')
+      .where({ depositID })
+      .first();
+
+    const totals = await knex('withdrawals')
+      .where({ depositID })
+      .sum({ totalCosts: 'cost' })
+      .first();
+    const totalCosts = Number(totals.totalCosts) || 0;
+
+    const newEndBalance =
+      Number(deposit.startBalance || 0) +
+      Number(deposit.depositAmount || 0) -
+      totalCosts;
+
+    await knex('deposits')
+      .where({ depositID })
+      .update({ endBalance: newEndBalance });
+
+    return res.json({ withdrawal: updated });
+  } catch (err) {
+    console.error('PUT /api/withdrawals/:withdrawalID/:depositID error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/withdrawals/:withdrawalID', verifyToken, async (req, res) => {
+  try {
+    const { accountID, level } = req.user;
+    const withdrawalID = Number(req.params.withdrawalID);
+
+    if (level !== 'M') {
+      return res.status(403).json({ error: 'Manager access required' });
+    }
+
+    const withdrawal = await knex('withdrawals')
+      .where({ withdrawalID, accountID })
+      .first();
+    if (!withdrawal) {
+      return res.status(404).json({ error: 'Withdrawal not found' });
+    }
+
+    const depositID = withdrawal.depositID;
+
+    await knex('withdrawals')
+      .where({ withdrawalID, accountID })
+      .del();
+
+    const deposit = await knex('deposits')
+      .where({ depositID })
+      .first();
+
+    const totals = await knex('withdrawals')
+      .where({ depositID })
+      .sum({ totalCosts: 'cost' })
+      .first();
+    const totalCosts = Number(totals.totalCosts) || 0;
+
+    const newEndBalance =
+      Number(deposit.startBalance || 0) +
+      Number(deposit.depositAmount || 0) -
+      totalCosts;
+
+    await knex('deposits')
+      .where({ depositID })
+      .update({ endBalance: newEndBalance });
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error('DELETE /api/withdrawals/:withdrawalID error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 app.get('/displayWithdrawl/:depositID', (req, res) => {
     if (!req.session.isLoggedIn) {
