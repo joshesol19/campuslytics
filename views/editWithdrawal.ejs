@@ -111,12 +111,22 @@
  
            <div class="col-md-6">
              <label for="category" class="form-label">Category</label>
-             <input type="text" id="category" name="category" class="form-control" required value="<%=withdrawal.category%>">
+            <input type="text" id="category" name="category" class="form-control" list="categoryOptions" required value="<%=withdrawal.category%>">
+            <datalist id="categoryOptions">
+              <% (categoryOptions || []).forEach(function(opt){ %>
+                <option value="<%= opt %>"></option>
+              <% }) %>
+            </datalist>
            </div>
  
            <div class="col-md-6">
              <label for="subcategory" class="form-label">Subcategory (Company / Entity)</label>
-             <input type="text" id="subcategory" name="subcategory" class="form-control" required value="<%=withdrawal.subcategory%>">
+            <input type="text" id="subcategory" name="subcategory" class="form-control" list="subcategoryOptions" required value="<%=withdrawal.subcategory%>">
+            <datalist id="subcategoryOptions">
+              <% (subcategoryOptions || []).forEach(function(opt){ %>
+                <option value="<%= opt %>"></option>
+              <% }) %>
+            </datalist>
            </div>
  
            <div class="col-md-12">

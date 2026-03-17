@@ -235,15 +235,17 @@
          <div class="text-center mb-5">
            <h3 class="h5 mb-3">Amount Spent per Category</h3>
            <img 
-             src="/images/graphs/categorySpending<%= deposit.depositID %>.png?v=<%= Date.now() %>"
+            src="/images/graphs/categorySpending<%= deposit.depositID %>.png?v=<%= Date.now() %>"
              alt="Category Spending"
-             class="analysis-image shadow-sm rounded mb-4">
+            class="analysis-image shadow-sm rounded mb-4"
+            id="periodGraph">
  
            <h3 class="h5 mb-3">Average Spending Across All Payment Periods</h3>
            <img 
-             src="/images/graphs/allCategoriesCostsAccount<%=deposit.accountID%>.png?v=<%= Date.now() %>"
+            src="/images/graphs/allCategoriesCostsAccount<%=deposit.accountID%>.png?v=<%= Date.now() %>"
              alt="Average category spending"
-             class="analysis-image shadow-sm rounded">
+            class="analysis-image shadow-sm rounded"
+            id="overallGraph">
          </div>
  
          <!-- AI Section -->
@@ -312,6 +314,8 @@
           });
       })();
     </script>
+
+    <!-- Graphs are generated server-side before render -->
 
 
  

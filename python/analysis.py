@@ -20,34 +20,39 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 
 def make_engine():
+    """
+    Create a SQLAlchemy engine either from DATABASE_URL or from individual
+    DB_* environment variables. Kept lightweight because this runs on every
+    analysis request.
+    """
     if DATABASE_URL:
-        u = urlparse(DATABASE_URL)
+        # Single, already-parsed URL from the environment
         return create_engine(DATABASE_URL, pool_pre_ping=True)
 
+    # Fallback to local connection settings
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME")
 
-    # else grab a local run
-    DB_USER = os.getenv("DB_USER")
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    DB_NAME = os.getenv("DB_NAME")
+    if not db_user or not db_name or not db_password:
+        raise RuntimeError("Missing DB_USER, DB_NAME or DB_PASSWORD for local connection")
 
-    if not DB_PASSWORD:
-        raise RuntimeError("DB_PASSWORD missing for local connection")
+    dsn = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    return create_engine(dsn, pool_pre_ping=True)
 
-
-    return create_engine(
-        f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
-        pool_pre_ping=True,
-    )
 
 engine = make_engine()
 
 
-client = OpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1",
-)
+client = None
+if GROQ_API_KEY:
+    # Lazily create the Groq/OpenAI client only when we have a key
+    client = OpenAI(
+        api_key=GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1",
+    )
 
 
 # 3. grab args
@@ -65,11 +70,11 @@ dfDeposit = pd.read_sql(queryDeposit, con=engine)
 #############################################
 #############################################
 
-# 6. Simple test values so we know everything works
+# 6. Aggregate data / safety against empty periods
 row_count = int(len(dfWith))
 total_cost = float(dfWith["cost"].sum()) if not dfWith.empty else 0.0
 
-# get average prices
+# get average prices across all history for this account
 queryForAvgs = (f'''
                 SELECT
                   "category",
@@ -87,24 +92,54 @@ queryForAvgs = (f'''
                 GROUP BY "category"
                     ''')
 df_averages = pd.read_sql(queryForAvgs, con=engine)
-df_averages["baseline_eligible"] = df_averages["deposit_count"] >= 2
+if not df_averages.empty:
+    df_averages["baseline_eligible"] = df_averages["deposit_count"] >= 2
+else:
+    df_averages["baseline_eligible"] = []
 
-# 1) Category totals (whole context)
-cat_totals = (dfWith.groupby("category", as_index=False)
-              .agg(total_spend=("cost", "sum"),
-                   tx_count=("cost", "size"))
-              .sort_values("total_spend", ascending=False))
+# 1) Category totals (whole context) – guard if no withdrawals this period
+if dfWith.empty:
+    cat_totals = pd.DataFrame(columns=["category", "total_spend", "tx_count"])
+    top_tx = pd.DataFrame(
+        columns=["withdrawalID", "withdrawalDate", "category", "subcategory", "location", "cost", "notes", "onlineFlag"]
+    )
+    outliers = pd.DataFrame(columns=["withdrawalID", "withdrawalDate", "category", "cost", "location", "notes"])
+else:
+    cat_totals = (
+        dfWith.groupby("category", as_index=False)
+        .agg(total_spend=("cost", "sum"), tx_count=("cost", "size"))
+        .sort_values("total_spend", ascending=False)
+    )
 
-# 2) Top 25 individual transactions (details that matter)
-top_tx = (dfWith.sort_values("cost", ascending=False)
-.head(25)[["withdrawalID", "withdrawalDate", "category", "subcategory", "location", "cost", "notes", "onlineFlag"]])
+    # 2) Top 25 individual transactions (details that matter)
+    top_tx = (
+        dfWith.sort_values("cost", ascending=False)
+        .head(25)[
+            [
+                "withdrawalID",
+                "withdrawalDate",
+                "category",
+                "subcategory",
+                "location",
+                "cost",
+                "notes",
+                "onlineFlag",
+            ]
+        ]
+    )
 
-# 3) Outliers (optional, but strong context)
-q1, q3 = dfWith["cost"].quantile([0.25, 0.75])
-iqr = q3 - q1
-cutoff = q3 + 1.5 * iqr
-outliers = dfWith[dfWith["cost"] > cutoff].sort_values("cost", ascending=False)
-outliers = outliers.head(20)[["withdrawalID", "withdrawalDate", "category", "cost", "location", "notes"]]
+    # 3) Outliers (optional, but strong context)
+    if dfWith["cost"].count() >= 4:
+        q1, q3 = dfWith["cost"].quantile([0.25, 0.75])
+        iqr = q3 - q1
+        cutoff = q3 + 1.5 * iqr
+        outliers = (
+            dfWith[dfWith["cost"] > cutoff]
+            .sort_values("cost", ascending=False)
+            .head(20)[["withdrawalID", "withdrawalDate", "category", "cost", "location", "notes"]]
+        )
+    else:
+        outliers = pd.DataFrame(columns=["withdrawalID", "withdrawalDate", "category", "cost", "location", "notes"])
 
 payload = {
     "period_deposit": dfDeposit.to_dict(orient="records"),
@@ -124,17 +159,24 @@ if mode == "fast":
 
     output_path = os.path.join(output_dir, f"categorySpending{deposit_id}.png")
 
-    # build the graph for the dollars spent in THIS withdrawal peroid
-    # Sort values highest → lowest
-    dfWith = dfWith.sort_values(by='cost', ascending=False)
+    # Graph 1: total spent per category for THIS deposit period
+    if dfWith.empty:
+        period_cat = pd.DataFrame({"category": [], "total_spend": []})
+    else:
+        period_cat = (
+            dfWith.groupby("category", as_index=False)
+            .agg(total_spend=("cost", "sum"))
+            .sort_values("total_spend", ascending=False)
+        )
+
     plt.figure(figsize=(12, 6))
 
     ax = sns.barplot(
-        x='category',
-        y='cost',
-        data=dfWith,
-        color='orange',
-        errorbar=None
+        x="category",
+        y="total_spend",
+        data=period_cat,
+        color="orange",
+        errorbar=None,
     )
 
     # add data labels on top of each bar
@@ -149,7 +191,7 @@ if mode == "fast":
             fontsize=9
         )
 
-    plt.title('Dollars Spent by Category (This Period)')
+    plt.title('Total Dollars Spent by Category (This Period)')
     plt.xlabel("Category")
     plt.ylabel("Dollars Spent ($)")
     plt.xticks(rotation=45, ha='right')
@@ -160,40 +202,60 @@ if mode == "fast":
 
 
 
-    # allCategoriesCosts graph
-    # Sort values highest to lowest
-    df_averages = df_averages.sort_values(by='avg', ascending=False)
-    # Make the plot
-    plt.figure(figsize=(12, 6)) 
+    # Graph 2: average spending per category PER payment/deposit period (overall)
+    # Compute: for each depositID+category, sum(cost); then average those sums per category.
+    query_avg_cat_per_period = f'''
+        SELECT
+          "category",
+          AVG("period_total") AS avg_per_period,
+          COUNT(DISTINCT "depositID") AS deposit_count
+        FROM (
+          SELECT
+            "category",
+            "depositID",
+            SUM("cost") AS period_total
+          FROM withdrawals
+          WHERE "accountID" = {UserAccountID}
+          GROUP BY "depositID", "category"
+        ) t
+        GROUP BY "category"
+        HAVING COUNT(DISTINCT "depositID") >= 2
+    '''
+    df_avg_cat = pd.read_sql(query_avg_cat_per_period, con=engine)
+    if df_avg_cat.empty:
+        df_avg_cat = pd.DataFrame({"category": [], "avg_per_period": []})
+    else:
+        df_avg_cat = df_avg_cat.sort_values(by="avg_per_period", ascending=False)
 
+    plt.figure(figsize=(12, 6))
     ax = sns.barplot(
-        x='category',
-        y='avg',
-        data=df_averages[df_averages["baseline_eligible"]],
-        color='orange',
-        errorbar=None
+        x="category",
+        y="avg_per_period",
+        data=df_avg_cat,
+        color="orange",
+        errorbar=None,
     )
 
-    # add data labels on top of each bar
+    # add data labels
     for bar in ax.patches:
         height = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             height,
             f"${height:,.2f}",
-            ha='center',
-            va='bottom',
-            fontsize=9
+            ha="center",
+            va="bottom",
+            fontsize=9,
         )
 
-    plt.title('Average Dollars Spent by Category (Overall)')
+    plt.title("Average Dollars Spent per Category (Per Payment Period)")
     plt.xlabel("Category")
-    plt.ylabel("Dollars Spent ($)")
-    plt.xticks(rotation=45, ha='right')
+    plt.ylabel("Avg Dollars Spent / Period ($)")
+    plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
 
     output_path = os.path.join(output_dir, f"allCategoriesCostsAccount{UserAccountID}.png")
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.clf()
 
 
@@ -232,7 +294,8 @@ prompt = f"""
         or listing outliers or top spends, etc.
     7) Only compare a category to “your usual” if overall_category_averages.baseline_eligible is true (deposit_count >= 2).
     8) If a category is NOT baseline_eligible, treat it as “one-time/irregular” and DO NOT label it Above/Below/On average.
-
+    9) Make sure that any bullet points are formatted with a new line after each point. (use <br> tags)
+    
     
     Math rules:
     - start_balance_calc = start_Balance + depositAmount
@@ -276,7 +339,7 @@ prompt = f"""
       - If none of the top 3 categories are baseline_eligible, write: “Not enough history yet to compare recurring categories.”
       - Never compare irregular categories here.
       - Don't include tithing if applicable
-
+    
     
       <h3>5) Notable Transactions</h3>
       - List up to 5 from top_transactions (largest costs), formatted:
@@ -309,14 +372,100 @@ prompt = f"""
     {payload_json}
 
     """
-resp = client.chat.completions.create(
-    model="openai/gpt-oss-20b",
-    messages=[
-        {"role": "user", "content": prompt}
-    ],
-    temperature=0.3,
-)
 
-ai_html = resp.choices[0].message.content or ""
+fallback_html = """
+<div>
+  <h2>Analysis temporarily unavailable</h2>
+  <p>We were unable to generate AI analysis for this period. You can still use the graphs above to review your spending by category.</p>
+</div>
+"""
+
+ai_html = fallback_html
+
+if client is None:
+    # No API key configured – return a graceful fallback instead of crashing
+    print(json.dumps({"AI_Recomendation": ai_html}, default=str))
+    sys.stdout.flush()
+    sys.exit(0)
+
+def _escape_html(s: str) -> str:
+    return (
+        s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
+
+def _normalize_ai_html(content: str, fallback: str) -> str:
+    """
+    Models sometimes return markdown-style bullets (e.g. "* item") or plain text.
+    Browsers collapse raw newlines, so we convert common bullet patterns to
+    real HTML (<ul><li>...</li></ul>) and always return a single <div> wrapper.
+    """
+    if not content or not content.strip():
+        return fallback
+
+    trimmed = content.strip()
+
+    # If it already looks like HTML, keep it; ensure we have a wrapper <div>.
+    if "<" in trimmed and "</" in trimmed:
+        if trimmed.lower().startswith("<div"):
+            return trimmed
+        return f"<div>{trimmed}</div>"
+
+    # Plain text / markdown-ish: convert bullets + paragraphs.
+    lines = trimmed.splitlines()
+    out: list[str] = ["<div>"]
+    in_list = False
+    saw_bullets = False
+
+    for raw in lines:
+        line = raw.rstrip()
+        stripped = line.lstrip()
+        is_bullet = stripped.startswith("* ") or stripped.startswith("- ")
+
+        if is_bullet:
+            saw_bullets = True
+            if not in_list:
+                out.append("<ul>")
+                in_list = True
+            out.append(f"<li>{_escape_html(stripped[2:].strip())}</li>")
+            continue
+
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+
+        if stripped == "":
+            out.append("<br>")
+        else:
+            out.append(f"<p>{_escape_html(stripped)}</p>")
+
+    if in_list:
+        out.append("</ul>")
+
+    out.append("</div>")
+
+    if not saw_bullets:
+        return f"<div><p>{_escape_html(trimmed)}</p></div>"
+
+    return "\n".join(out)
+
+try:
+    resp = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=1200,
+    )
+    content = resp.choices[0].message.content or ""
+    ai_html = _normalize_ai_html(content, fallback_html)
+except Exception as exc:
+    # Print to stderr for Node to log, but still return a useful message to the user
+    print(f"[analysis.py] AI call failed: {exc}", file=sys.stderr)
+
 print(json.dumps({"AI_Recomendation": ai_html}, default=str))
 sys.stdout.flush()
+sys.exit(0)

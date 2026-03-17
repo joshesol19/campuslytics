@@ -20,6 +20,7 @@ let path = require("path");
 let bodyParser = require("body-parser");
 
 const multer = require('multer');
+const fs = require('fs');
 
 let app = express();
 
@@ -1209,15 +1210,34 @@ app.get('/addWithdrawal/:depositID', (req, res) => {
     // portion, if not, they will be thrown into the index page with an error telling them this 
     // (this is in the else part)
     if (req.session.level === 'M') {
-        res.render('addWithdrawal', 
-            {
-                error_message:'', 
-                loggedIn: req.session.isLoggedIn,
-                level: req.session.level,
-                depositID: req.params.depositID
-            });
+      const accountID = req.session.accountID;
+      Promise.all([
+        knex('withdrawals').where({ accountID }).distinct('category').orderBy('category', 'asc'),
+        knex('withdrawals').where({ accountID }).distinct('subcategory').orderBy('subcategory', 'asc'),
+      ])
+        .then(([cats, subs]) => {
+          res.render('addWithdrawal', {
+            error_message: '',
+            loggedIn: req.session.isLoggedIn,
+            level: req.session.level,
+            depositID: req.params.depositID,
+            categoryOptions: cats.map(r => r.category).filter(Boolean),
+            subcategoryOptions: subs.map(r => r.subcategory).filter(Boolean),
+          });
+        })
+        .catch((err) => {
+          console.error('Error loading withdrawal options:', err);
+          res.render('addWithdrawal', {
+            error_message: '',
+            loggedIn: req.session.isLoggedIn,
+            level: req.session.level,
+            depositID: req.params.depositID,
+            categoryOptions: [],
+            subcategoryOptions: [],
+          });
+        });
     } else {
-        res.redirect('/displayWithdrawl')
+      res.redirect('/displayWithdrawl')
     }
 })
 
@@ -1613,20 +1633,31 @@ app.get('/displayWithdrawl/:depositID', (req, res) => {
 
 app.get('/editWithdrawal/:withdrawalID', (req, res)=> {
   knex('withdrawals')
-  .where('withdrawalID', req.params.withdrawalID)
-  .first()
-  .then((selectedwithdrawal) => {
-    if (!selectedwithdrawal.accountID === req.session.accountID || !req.session.isLoggedIn){
-      console.log(`User with account ID '${req.session.accountID}' tried to edit a withdrawal with an account ID of '${selectedwithdrawal.accountID}'`)
-      res.redirect('/')
-    } else {
-      res.render('editWithdrawal',
-        {withdrawal : selectedwithdrawal,
-        'error_message' : ''
-        }
-      )
-    }
-  })
+    .where('withdrawalID', req.params.withdrawalID)
+    .first()
+    .then((selectedwithdrawal) => {
+      if (!req.session.isLoggedIn || Number(selectedwithdrawal.accountID) !== Number(req.session.accountID)) {
+        console.log(`User with account ID '${req.session.accountID}' tried to edit a withdrawal with an account ID of '${selectedwithdrawal.accountID}'`)
+        return res.redirect('/')
+      }
+
+      const accountID = req.session.accountID;
+      return Promise.all([
+        knex('withdrawals').where({ accountID }).distinct('category').orderBy('category', 'asc'),
+        knex('withdrawals').where({ accountID }).distinct('subcategory').orderBy('subcategory', 'asc'),
+      ]).then(([cats, subs]) => {
+        return res.render('editWithdrawal', {
+          withdrawal: selectedwithdrawal,
+          error_message: '',
+          categoryOptions: cats.map(r => r.category).filter(Boolean),
+          subcategoryOptions: subs.map(r => r.subcategory).filter(Boolean),
+        });
+      });
+    })
+    .catch((err) => {
+      console.error('Error loading edit withdrawal:', err);
+      res.redirect('/');
+    });
 });
 
 app.post('/editWithdrawal/:withdrawalID/:depositID', (req, res)=> {
@@ -1863,25 +1894,20 @@ app.get('/displayAnalysis/:depositID', (req, res) => {
                     .groupBy('depositID')
                     .first()
                     .then((costSum) => {
-
-                      // FAST python run: graphs + payload, no AI
-                      let UserAccountID = req.session.accountID
-
+                      // Generate graphs BEFORE rendering the page (blocking).
                       const py = spawn(
-                          PYTHON,
-                          [scriptPath, String(depositID), String(accountID), 'fast'],
-                          {
-                            env: { ...process.env },     // <-- critical
-                            stdio: ['ignore', 'pipe', 'pipe'],
-                          }
-                        );
-
+                        PYTHON,
+                        [scriptPath, String(depositID), String(accountID), 'fast'],
+                        {
+                          env: { ...process.env },
+                          stdio: ['ignore', 'pipe', 'pipe'],
+                        }
+                      );
 
                       let pyOutput = '';
                       let pyErr = '';
-
-                      py.stdout.on('data', (data) => { pyOutput += data.toString(); });
-                      py.stderr.on('data', (data) => { pyErr += data.toString(); });
+                      py.stdout.on('data', (d) => { pyOutput += d.toString(); });
+                      py.stderr.on('data', (d) => { pyErr += d.toString(); });
 
                       py.on('error', (err) => {
                         console.error('Python spawn failed:', err);
@@ -1890,20 +1916,18 @@ app.get('/displayAnalysis/:depositID', (req, res) => {
 
                       py.on('close', (code) => {
                         if (code !== 0) {
-                          console.error('Python exited nonzero:', code, pyErr);
+                          console.error('Python FAST exited nonzero:', code, pyErr);
                           return res.status(500).send('Analysis failed on server.');
                         }
 
+                        // Payload is optional; graphs are the key output.
                         let analysis = { AI_Recomendation: '' };
-
                         try {
-                          const parsed = JSON.parse(pyOutput);
-                          analysis.payload = parsed.payload; // optional
+                          const parsed = JSON.parse(pyOutput || '{}');
+                          analysis.payload = parsed.payload;
                         } catch (e) {
+                          // If parsing fails, still render (graphs already generated)
                           console.error('Error parsing FAST Python output:', e);
-                          console.error('RAW pyOutput:', pyOutput);
-                          console.error('RAW pyErr:', pyErr);
-                          return res.status(500).send('Bad output from analysis script.');
                         }
 
                         return res.render('displayAnalysis', {
@@ -1925,6 +1949,55 @@ app.get('/displayAnalysis/:depositID', (req, res) => {
     .catch((err) => {
       console.error(err);
       res.redirect('/displayDeposits');
+    });
+});
+
+// Kick off FAST analysis graphs without blocking page render
+app.get('/analysisFast/:depositID', (req, res) => {
+  if (!req.session.isLoggedIn) return res.status(401).json({ error: 'Not logged in' });
+
+  const accountID = req.session.accountID;
+  const depositID = Number(req.params.depositID);
+  if (!Number.isFinite(depositID)) return res.status(400).json({ error: 'Invalid depositID' });
+
+  // Verify deposit belongs to this account
+  knex('deposits')
+    .where({ accountID: accountID, depositID: depositID })
+    .first()
+    .then((dep) => {
+      if (!dep) return res.status(404).json({ error: 'Deposit not found' });
+
+      const py = spawn(
+        PYTHON,
+        [scriptPath, String(depositID), String(accountID), 'fast'],
+        {
+          env: { ...process.env },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
+      );
+
+      let pyOutput = '';
+      let pyErr = '';
+      py.stdout.on('data', (d) => { pyOutput += d.toString(); });
+      py.stderr.on('data', (d) => { pyErr += d.toString(); });
+
+      py.on('error', (err) => {
+        console.error('Python spawn failed:', err);
+        return res.status(500).json({ error: 'FAST analysis failed' });
+      });
+
+      py.on('close', (code) => {
+        if (code !== 0) {
+          console.error('Python FAST exited nonzero:', code, pyErr);
+          return res.status(500).json({ error: 'FAST analysis failed' });
+        }
+        // Payload is optional; graphs are the key output.
+        return res.json({ ok: true, cached: false });
+      });
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(500).json({ error: 'Server error' });
     });
 });
 
