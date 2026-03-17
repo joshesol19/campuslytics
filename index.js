@@ -636,6 +636,84 @@ app.delete('/api/deposits/:depositID', verifyToken, async (req, res) => {
 
   });
 
+// /////////////////////// - MONTHLY ANALYSIS - ///////////////////////////////
+app.get('/monthlyAnalysis', (req, res) => {
+  if (!req.session.isLoggedIn) return res.redirect('/login');
+
+  const accountID = req.session.accountID;
+
+  knex('withdrawals')
+    .where({ accountID })
+    .select(knex.raw('DISTINCT DATE_TRUNC(\'month\', "withdrawalDate") AS month'))
+    .orderBy('month', 'desc')
+    .then((rows) => {
+      const availableMonths = rows.map((r) => {
+        const d = new Date(r.month);
+        return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+      });
+
+      res.render('monthlyAnalysisSelect', {
+        error_message: '',
+        availableMonths,
+      });
+    })
+    .catch((err) => {
+      console.error('monthlyAnalysis error:', err);
+      res.render('monthlyAnalysisSelect', {
+        error_message: 'Unable to load months.',
+        availableMonths: [],
+      });
+    });
+});
+
+const monthlyScriptPath = path.join(__dirname, 'python', 'monthly_analysis.py');
+
+app.get('/displayMonthlyAnalysis', (req, res) => {
+  if (!req.session.isLoggedIn) return res.redirect('/login');
+
+  const accountID = req.session.accountID;
+  const monthKey = (req.query.month || '').trim(); // YYYY-MM
+  if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) {
+    return res.redirect('/monthlyAnalysis');
+  }
+
+  const py = spawn(
+    PYTHON,
+    [monthlyScriptPath, String(accountID), monthKey],
+    {
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  );
+
+  let pyOutput = '';
+  let pyErr = '';
+  py.stdout.on('data', (d) => { pyOutput += d.toString(); });
+  py.stderr.on('data', (d) => { pyErr += d.toString(); });
+
+  py.on('error', (err) => {
+    console.error('monthly_analysis spawn failed:', err);
+    return res.status(500).send('Monthly analysis not available.');
+  });
+
+  py.on('close', (code) => {
+    if (code !== 0) {
+      console.error('monthly_analysis exited nonzero:', code, pyErr);
+      return res.status(500).send('Monthly analysis failed.');
+    }
+
+    const [y, m] = monthKey.split('-').map((x) => Number(x));
+    const monthLabel = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+    return res.render('displayMonthlyAnalysis', {
+      error_message: '',
+      monthKey,
+      monthLabel,
+      accountID,
+    });
+  });
+});
+
   app.post('/addDeposit', async (req, res, next) => {
     try {
       if (!req.session.isLoggedIn) return res.redirect('/login');

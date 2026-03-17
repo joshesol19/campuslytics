@@ -84,84 +84,147 @@
    </nav>
  
    <!-- MAIN CONTENT -->
-   <div class="container mt-5">
-     <div class="col-12 col-md-7 col-lg-6 mx-auto">
-       <div class="card form-card p-4">
-         
-         <h2 class="mb-3 text-center">Add Withdrawal</h2>
-         <p class="text-muted text-center mb-4">Enter the details for this withdrawal.</p>
- 
-         <% if (error_message) { %>
-         <div class="alert alert-danger">
-           <%= error_message %>
-         </div>
-         <% } %>
- 
-         <form action="/addWithdrawal/<%=depositID%>" method="post" class="row g-3">
- 
-           <div class="col-md-6">
-             <label for="date" class="form-label">Date</label>
-             <input type="date" class="form-control" id="date" name="date" required>
-           </div>
- 
-           <div class="col-md-6">
-             <label for="cost" class="form-label">Cost ($)</label>
-             <input type="number" class="form-control" id="cost" name="cost" step="0.01" required>
-           </div>
- 
-           <div class="col-md-6">
-             <label for="category" class="form-label">Category</label>
-            <input type="text" id="category" name="category" class="form-control" list="categoryOptions" required>
-            <datalist id="categoryOptions">
-              <% (categoryOptions || []).forEach(function(opt){ %>
-                <option value="<%= opt %>"></option>
-              <% }) %>
-            </datalist>
-           </div>
- 
-           <div class="col-md-6">
-             <label for="subcategory" class="form-label">Subcategory (Company / Entity)</label>
-            <input type="text" id="subcategory" name="subcategory" class="form-control" list="subcategoryOptions" required>
-            <datalist id="subcategoryOptions">
-              <% (subcategoryOptions || []).forEach(function(opt){ %>
-                <option value="<%= opt %>"></option>
-              <% }) %>
-            </datalist>
-           </div>
- 
-           <div class="col-md-12">
-             <label for="location" class="form-label">Location</label>
-             <input type="text" id="location" name="location" class="form-control" required>
-           </div>
- 
-           <div class="col-md-12">
-             <label for="notes" class="form-label">Notes (optional)</label>
-             <textarea id="notes" name="notes" class="form-control" rows="2"></textarea>
-           </div>
- 
-           <div class="col-md-12">
-             <label class="form-label d-block">Was it Online?</label>
- 
-             <div class="form-check form-check-inline">
-               <input type="radio" id="onlineYes" class="form-check-input" name="onlineFlag" value="1" required>
-               <label for="onlineYes" class="form-check-label">Yes</label>
-             </div>
- 
-             <div class="form-check form-check-inline">
-               <input type="radio" id="onlineNo" class="form-check-input" name="onlineFlag" value="0" required>
-               <label for="onlineNo" class="form-check-label">No</label>
-             </div>
-           </div>
- 
-           <div class="col-12 text-center">
-             <button type="submit" class="btn btn-primary w-100 mt-3">Save Withdrawal</button>
-           </div>
- 
-         </form>
-       </div>
-     </div>
-   </div>
- 
+  <div class="container mt-5">
+    <div class="col-12 col-md-7 col-lg-6 mx-auto">
+      <div class="card form-card p-4">
+        
+        <h2 class="mb-3 text-center">Add Withdrawal</h2>
+        <p class="text-muted text-center mb-4">Enter the details for this withdrawal.</p>
+
+        <% if (error_message) { %>
+        <div class="alert alert-danger">
+          <%= error_message %>
+        </div>
+        <% } %>
+
+        <form action="/addWithdrawal/<%=depositID%>" method="post" class="row g-3">
+
+          <div class="col-md-6">
+            <label for="date" class="form-label">Date</label>
+            <input type="date" class="form-control" id="date" name="date" required>
+          </div>
+
+          <div class="col-md-6">
+            <label for="cost" class="form-label">Cost ($)</label>
+            <input type="number" class="form-control" id="cost" name="cost" step="0.01" required>
+          </div>
+
+          <div class="col-md-6">
+            <label for="categorySelect" class="form-label">Category</label>
+            <select id="categorySelect" class="form-select">
+              <% if ((categoryOptions || []).length === 0) { %>
+                <option value="" selected>-- Type custom below --</option>
+              <% } else { %>
+                <option value="">-- Select previous or choose custom --</option>
+                <% (categoryOptions || []).forEach(function(opt){ %>
+                  <option value="<%= opt %>"><%= opt %></option>
+                <% }) %>
+              <% } %>
+              <option value="_custom">+ Custom category...</option>
+            </select>
+            <input
+              type="text"
+              id="category"
+              name="category"
+              class="form-control mt-2"
+              placeholder="Type category"
+              required
+            >
+          </div>
+
+          <div class="col-md-6">
+            <label for="subcategorySelect" class="form-label">Subcategory (Company / Entity)</label>
+            <select id="subcategorySelect" class="form-select">
+              <% if ((subcategoryOptions || []).length === 0) { %>
+                <option value="" selected>-- Type custom below --</option>
+              <% } else { %>
+                <option value="">-- Select previous or choose custom --</option>
+                <% (subcategoryOptions || []).forEach(function(opt){ %>
+                  <option value="<%= opt %>"><%= opt %></option>
+                <% }) %>
+              <% } %>
+              <option value="_custom">+ Custom subcategory...</option>
+            </select>
+            <input
+              type="text"
+              id="subcategory"
+              name="subcategory"
+              class="form-control mt-2"
+              placeholder="Type subcategory / entity"
+              required
+            >
+          </div>
+
+          <div class="col-md-12">
+            <label for="location" class="form-label">Location</label>
+            <input type="text" id="location" name="location" class="form-control" required>
+          </div>
+
+          <div class="col-md-12">
+            <label for="notes" class="form-label">Notes (optional)</label>
+            <textarea id="notes" name="notes" class="form-control" rows="2"></textarea>
+          </div>
+
+          <div class="col-md-12">
+            <label class="form-label d-block">Was it Online?</label>
+
+            <div class="form-check form-check-inline">
+              <input type="radio" id="onlineYes" class="form-check-input" name="onlineFlag" value="1" required>
+              <label for="onlineYes" class="form-check-label">Yes</label>
+            </div>
+
+            <div class="form-check form-check-inline">
+              <input type="radio" id="onlineNo" class="form-check-input" name="onlineFlag" value="0" required>
+              <label for="onlineNo" class="form-check-label">No</label>
+            </div>
+          </div>
+
+          <div class="col-12 text-center">
+            <button type="submit" class="btn btn-primary w-100 mt-3">Save Withdrawal</button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+ <script>
+   (function () {
+     const catSelect = document.getElementById('categorySelect');
+     const catInput  = document.getElementById('category');
+     const subSelect = document.getElementById('subcategorySelect');
+     const subInput  = document.getElementById('subcategory');
+
+     if (catSelect && catInput) {
+       catSelect.addEventListener('change', function () {
+         if (this.value && this.value !== '_custom') {
+           catInput.value = this.value;
+           catInput.readOnly = true;
+         } else {
+           catInput.value = '';
+           catInput.readOnly = false;
+           catInput.focus();
+         }
+       });
+       catSelect.dispatchEvent(new Event('change'));
+     }
+
+     if (subSelect && subInput) {
+       subSelect.addEventListener('change', function () {
+         if (this.value && this.value !== '_custom') {
+           subInput.value = this.value;
+           subInput.readOnly = true;
+         } else {
+           subInput.value = '';
+           subInput.readOnly = false;
+           subInput.focus();
+         }
+       });
+       subSelect.dispatchEvent(new Event('change'));
+     }
+   })();
+ </script>
+
  </body>
  </html>
  

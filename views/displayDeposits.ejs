@@ -136,6 +136,14 @@
           </div>
         </div>
 
+        <div class="d-flex justify-content-end mb-3">
+          <form action="/monthlyAnalysis" method="get" class="d-inline">
+            <button type="submit" class="btn btn-primary btn-sm">
+              View Monthly Analysis
+            </button>
+          </form>
+        </div>
+
         <% if (deposits.length === 0) { %>
           <div class="alert alert-warning" role="alert">
             No deposits found in the database.

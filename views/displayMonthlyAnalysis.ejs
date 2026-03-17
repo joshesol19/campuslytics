@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Monthly Analysis</title>
+  <link rel="icon" type="image/png" href="/images/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f5f5f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .analysis-image {
+      display: block;
+      margin: 0 auto;
+      width: 100%;
+      max-width: 700px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-light bg-white shadow-sm border-bottom">
+    <div class="container d-flex justify-content-between">
+      <a href="/displayDeposits" class="navbar-brand">CampusLytics</a>
+      <div class="d-flex gap-2">
+        <form action="/displayDeposits" method="get">
+          <button class="btn btn-outline-secondary btn-sm" type="submit">Back to Deposits</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container my-5">
+    <div class="card">
+      <div class="card-body p-4 p-md-5">
+        <h1 class="h4 mb-3">Monthly Spending Analysis</h1>
+        <p class="text-muted mb-4">
+          For <strong><%= monthLabel %></strong>
+        </p>
+
+        <% if (error_message) { %>
+          <div class="alert alert-danger"><%= error_message %></div>
+        <% } else { %>
+
+          <div class="text-center mb-5">
+            <h3 class="h5 mb-3">Total Spent per Category (This Month)</h3>
+            <img
+              src="/images/graphs/monthlyCategorySpending_<%= monthKey %>_account<%= accountID %>.png?v=<%= Date.now() %>"
+              alt="Monthly category spending"
+              class="analysis-image shadow-sm rounded mb-4">
+
+            <h3 class="h5 mb-3">Average Dollars Spent per Category (Per Month)</h3>
+            <img
+              src="/images/graphs/monthlyAllCategoriesAccount<%= accountID %>.png?v=<%= Date.now() %>"
+              alt="Average monthly category spending"
+              class="analysis-image shadow-sm rounded">
+          </div>
+
+        <% } %>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
