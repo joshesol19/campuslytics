@@ -458,7 +458,10 @@ try:
         model="openai/gpt-oss-120b",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
-        max_tokens=1200,
+        # gpt-oss is a reasoning model: reasoning tokens count toward max_tokens,
+        # so keep reasoning low and leave room for the actual answer
+        max_tokens=4000,
+        extra_body={"reasoning_effort": "low"},
     )
     content = resp.choices[0].message.content or ""
     ai_html = _normalize_ai_html(content, fallback_html)
