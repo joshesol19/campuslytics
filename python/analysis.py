@@ -455,7 +455,7 @@ def _normalize_ai_html(content: str, fallback: str) -> str:
 
 try:
     resp = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model="openai/gpt-oss-20b",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
         # gpt-oss is a reasoning model: reasoning tokens count toward max_tokens,
