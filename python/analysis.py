@@ -455,7 +455,7 @@ def _normalize_ai_html(content: str, fallback: str) -> str:
 
 try:
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
         max_tokens=1200,
